@@ -7,13 +7,12 @@
 let ultimaPosicion = null;
 let escaneoActivo = false;
 
-async function iniciarEscaneo() {
+function iniciarEscaneo() {
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
 
-    // Llamar a esta función solo desde un clic del usuario
     async function obtenerUbicacionYIniciarCamara() {
         if (!navigator.geolocation) {
             alert('Geolocalización no soportada por su navegador');
@@ -22,9 +21,7 @@ async function iniciarEscaneo() {
 
         try {
             ultimaPosicion = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    resolve(pos.coords);
-                }, err => reject(err), { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
+                navigator.geolocation.getCurrentPosition(pos => resolve(pos.coords), err => reject(err), { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
             });
             notificacion.textContent = `Ubicación obtenida: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
         } catch (err) {
@@ -32,7 +29,6 @@ async function iniciarEscaneo() {
             return;
         }
 
-        // Iniciar cámara y escaneo
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             video.srcObject = stream;
@@ -40,7 +36,7 @@ async function iniciarEscaneo() {
             await video.play();
 
             escaneoActivo = true;
-            requestAnimationFrame(function tick() {
+            function tick() {
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
@@ -65,11 +61,16 @@ async function iniciarEscaneo() {
                 if (escaneoActivo) {
                     requestAnimationFrame(tick);
                 }
-            });
+            }
+            requestAnimationFrame(tick);
+
         } catch (err) {
             alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
         }
     }
 
+    // Remover listener previo si existe para evitar múltiples asignaciones
+    const btn = document.getElementById('btnEscanear');
+    btn.replaceWith(btn.cloneNode(true));
     document.getElementById('btnEscanear').addEventListener('click', obtenerUbicacionYIniciarCamara);
 }
