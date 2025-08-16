@@ -1,15 +1,10 @@
-// Función para inicializar el lector QR
 function initQRScanner() {
     const reader = new Html5Qrcode("reader");
 
     reader.start(
         { facingMode: "environment" },
-        {
-            fps: 10,
-            qrbox: 250
-        },
+        { fps: 10, qrbox: 250 },
         qrCodeMessage => {
-            // Obtener la ubicación almacenada en sessionStorage
             const userLat = sessionStorage.getItem("user_lat");
             const userLon = sessionStorage.getItem("user_lon");
 
@@ -18,7 +13,6 @@ function initQRScanner() {
                 return;
             }
 
-            // Enviar QR + ubicación al backend
             fetch("/scan", {
                 method: "POST",
                 headers: {"Content-Type":"application/json"},
@@ -36,11 +30,8 @@ function initQRScanner() {
                 alert("Error al enviar datos: " + err);
             });
 
-            // Opcional: detener el lector después del primer escaneo
-            // reader.stop().then(() => console.log("Scanner detenido"));
         },
         errorMessage => {
-            // Puedes mostrar errores de escaneo en consola si quieres
             console.warn("QR no detectado:", errorMessage);
         }
     ).catch(err => {
@@ -48,7 +39,7 @@ function initQRScanner() {
     });
 }
 
-// Iniciar scanner automáticamente si ya hay ubicación guardada
+// Iniciar scanner solo si ya hay ubicación
 window.addEventListener("DOMContentLoaded", () => {
     const userLat = sessionStorage.getItem("user_lat");
     const userLon = sessionStorage.getItem("user_lon");
