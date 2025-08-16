@@ -104,4 +104,54 @@ def scan():
         coords, qr_number = qr_data.split("|")
         qr_lat, qr_lon = map(float, coords.split(","))
     except:
-        return jsonify(
+        return jsonify({"message": "Formato de QR inválido"}), 400
+
+    dist = haversine(user_lat, user_lon, qr_lat, qr_lon)
+    status = "VALIDO" if dist <= 50 else "INVALIDO"
+    fecha = time.strftime("%Y-%m-%d")
+    hora = time.strftime("%H:%M:%S")
+
+    conn = sqlite3.connect("scans.db")
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO asistencia (user_id, qr_number, qr_lat, qr_lon, user_lat, user_lon, distancia, estado, fecha, hora)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (session["user_id"], qr_number, qr_lat, qr_lon, user_lat, user_lon, dist, status, fecha, hora))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "message": f"Asistencia {status}",
+        "distancia_m": round(dist, 2),
+        "estado": status
+    })
+
+# -----------------------------
+# Mostrar asistencias
+# -----------------------------
+@app.route("/asistencias")
+def asistencias():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    conn = sqlite3.connect("scans.db")
+    c = conn.cursor()
+    c.execute("""
+        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon, a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
+        FROM asistencia a
+        JOIN usuarios u ON a.user_id = u.id
+        ORDER BY a.id DESC
+    """)
+    registros = c.fetchall()
+    conn.close()
+
+    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon", "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
+    registros_dict = [dict(zip(columnas, r)) for r in registros]
+
+    return render_template("asistencias.html", registros=registros_dict)
+
+# -----------------------------
+# Ejecutar app
+# -----------------------------
+if __name__ == "__main__":
+    app.run(debug=True)
