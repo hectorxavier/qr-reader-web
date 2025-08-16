@@ -10,28 +10,30 @@ async function iniciarEscaneo() {
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
 
+    // Solicitar ubicación al inicio para garantizar permisos en iOS y Android
+    if (navigator.geolocation) {
+        try {
+            await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                    () => resolve(),
+                    (err) => reject(err),
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                );
+            });
+        } catch (err) {
+            alert('Debe permitir el acceso a la ubicación para escanear el QR.');
+            return;
+        }
+    } else {
+        alert('Geolocalización no soportada por su navegador');
+        return;
+    }
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = stream;
         video.setAttribute('playsinline', true);
-        video.play();
-
-        // Solicitar ubicación antes de iniciar escaneo en iOS y móviles
-        if (navigator.geolocation) {
-            const permiso = await new Promise((resolve) => {
-                navigator.geolocation.getCurrentPosition(
-                    () => resolve(true),
-                    () => resolve(false),
-                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-                );
-            });
-
-            if (!permiso) {
-                alert('Debe permitir el acceso a la ubicación para escanear el QR.');
-                stream.getTracks().forEach(track => track.stop());
-                return;
-            }
-        }
+        await video.play();
 
         requestAnimationFrame(tick);
 
@@ -45,124 +47,19 @@ async function iniciarEscaneo() {
 
                 if (code) {
                     const id_usuario = document.getElementById('id_usuario').value;
-                    if (id_usuario) {
-                        validarCercaniaYRegistrar(code.data, id_usuario);
-                        stream.getTracks().forEach(track => track.stop());
-                        return;
-                    } else {
+                    if (!id_usuario) {
                         alert('Ingrese su ID antes de escanear');
+                        return;
                     }
+                    validarCercaniaYRegistrar(code.data, id_usuario);
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
                 }
             }
             requestAnimationFrame(tick);
         }
-
     } catch (err) {
         console.error('Error al acceder a la cámara:', err);
         alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
     }
-}
-
-function validarCercaniaYRegistrar(qrText, id_usuario) {
-    const partes = qrText.split('|');
-    if (partes.length < 2) {
-        alert('Formato de link incorrecto. Debe incluir coordenadas y número separados por "|"');
-        return;
-    }
-
-    const linkQR = partes[0];
-    const numero_qr = partes[1];
-
-    const match = linkQR.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (!match) {
-        alert('Formato de link incorrecto. No se puede validar la ubicación.');
-        return;
-    }
-
-    const latQR = parseFloat(match[1]);
-    const lngQR = parseFloat(match[2]);
-
-    if (navigator.geolocation) {
-        const opciones = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
-        navigator.geolocation.getCurrentPosition(pos => {
-            const latUser = pos.coords.latitude;
-            const lngUser = pos.coords.longitude;
-
-            const distancia = distanciaMetros(latUser, lngUser, latQR, lngQR);
-            const tolerancia = 50; // metros
-
-            if (distancia <= tolerancia) {
-                fetch('/asistencia', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id_usuario, numero_qr })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Asistencia registrada:', data);
-                    document.getElementById('notificacion').textContent = 'QR leído y asistencia registrada correctamente';
-                })
-                .catch(error => {
-                    console.error('Error al registrar asistencia:', error);
-                    alert('Hubo un error al registrar la asistencia');
-                });
-            } else {
-                document.getElementById('notificacion').textContent = 'Usted no está en la ubicación de la agencia';
-            }
-
-        }, err => {
-            console.error('Error obteniendo geolocalización:', err);
-            switch(err.code) {
-                case 1:
-                    alert('Permiso de ubicación denegado. Por favor, permita el acceso a la ubicación en su dispositivo.');
-                    break;
-                case 2:
-                    alert('Posición no disponible. No se pudo obtener la ubicación del dispositivo.');
-                    break;
-                case 3:
-                    alert('Tiempo de espera agotado para obtener la ubicación.');
-                    break;
-                default:
-                    alert('Error desconocido al obtener ubicación.');
-            }
-        }, opciones);
-    } else {
-        alert('Geolocalización no soportada por su navegador');
-    }
-}
-
-function distanciaMetros(lat1, lng1, lat2, lng2) {
-    const R = 6371000;
-    const toRad = deg => deg * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLng = toRad(lng2 - lng1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-}
-
-function filtrarYDescargar() {
-    const fecha = document.getElementById('filtro_fecha').value;
-    const usuario = document.getElementById('filtro_usuario').value;
-
-    fetch(`/asistencia?fecha=${encodeURIComponent(fecha)}&usuario=${encodeURIComponent(usuario)}`)
-    .then(response => response.json())
-    .then(data => {
-        let contenido = 'ID	Usuario	Fecha	Hora	Número QR
-';
-        data.forEach(item => {
-            contenido += `${item.id}	${item.id_usuario}	${item.fecha}	${item.hora}	${item.numero_qr}
-`;
-        });
-
-        const blob = new Blob([contenido], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'registros_asistencia.txt';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    })
-    .catch(error => console.error('Error al filtrar registros:', error));
 }
