@@ -16,3 +16,14 @@ La aplicación permite leer códigos QR desde la cámara del dispositivo, mostra
 
 ## Estructura del proyecto
 
+qr-attendance-app/
+├── app.py                  # Archivo principal de Flask con endpoints para guardar y mostrar asistencia, compatible con Flask/Werkzeug recientes
+├── db.py                   # Manejo de la base de datos SQLite con tabla asistencia
+├── attendance.db           # Base de datos SQLite (no se sube a GitHub)
+├── requirements.txt        # Dependencias de Python actualizadas, incluye gunicorn
+├── templates/
+│   └── index.html          # Frontend HTML con <ul> para mostrar registros
+├── static/
+│   ├── style.css           # Estilos CSS
+│   └── script.js           # JS modificado para enviar datos y mostrar registros del backend
+└── README.md               # Documentación del proyecto

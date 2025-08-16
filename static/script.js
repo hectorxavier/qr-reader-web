@@ -1,3 +1,15 @@
+async function iniciarEscaneo() {
+    const video = document.getElementById('preview');
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+    } catch (err) {
+        console.error('Error al acceder a la cámara:', err);
+        alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
+    }
+}
+
 function procesarQR(qrText, id_usuario) {
     const partes = qrText.split('/');
     const numero_qr = partes[partes.length - 1];
@@ -23,7 +35,6 @@ function mostrarAsistencias() {
     fetch('/asistencia')
     .then(response => response.json())
     .then(data => {
-        console.log('Registros actuales:', data);
         const lista = document.getElementById('lista-asistencias');
         lista.innerHTML = '';
         data.forEach(item => {
