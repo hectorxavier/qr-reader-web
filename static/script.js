@@ -7,80 +7,69 @@
 let ultimaPosicion = null;
 let escaneoActivo = false;
 
-// Función para solicitar permiso de ubicación y escanear QR tras interacción del usuario
 async function iniciarEscaneo() {
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
 
-    // Solicitar ubicación directamente en respuesta a la interacción del usuario (sin confirm)
-    if (navigator.geolocation) {
+    // Llamar a esta función solo desde un clic del usuario
+    async function obtenerUbicacionYIniciarCamara() {
+        if (!navigator.geolocation) {
+            alert('Geolocalización no soportada por su navegador');
+            return;
+        }
+
         try {
-            await new Promise((resolve, reject) => {
+            ultimaPosicion = await new Promise((resolve, reject) => {
                 navigator.geolocation.getCurrentPosition(pos => {
-                    ultimaPosicion = pos.coords;
-                    console.log('Ubicación inicial obtenida:', ultimaPosicion);
-                    notificacion.textContent = `Ubicación obtenida: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
-                    resolve();
-                }, err => {
-                    console.error('Error geolocalización:', err);
-                    alert('No se pudo obtener la ubicación. Por favor, habilite los permisos en su dispositivo.');
-                    reject(err);
-                }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
+                    resolve(pos.coords);
+                }, err => reject(err), { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
+            });
+            notificacion.textContent = `Ubicación obtenida: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
+        } catch (err) {
+            alert('No se pudo obtener la ubicación. Habilite los permisos y recargue la página.');
+            return;
+        }
+
+        // Iniciar cámara y escaneo
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+            video.setAttribute('playsinline', true);
+            await video.play();
+
+            escaneoActivo = true;
+            requestAnimationFrame(function tick() {
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                    if (code) {
+                        const id_usuario = document.getElementById('id_usuario').value;
+                        if (!id_usuario) {
+                            alert('Ingrese su ID antes de escanear');
+                            requestAnimationFrame(tick);
+                            return;
+                        }
+                        notificacion.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
+                        validarCercaniaYRegistrar(code.data, id_usuario, ultimaPosicion);
+                        escaneoActivo = false;
+                        stream.getTracks().forEach(track => track.stop());
+                        return;
+                    }
+                }
+                if (escaneoActivo) {
+                    requestAnimationFrame(tick);
+                }
             });
         } catch (err) {
-            return; // Salir si no se obtuvo la ubicación
+            alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
         }
-    } else {
-        alert('Geolocalización no soportada por su navegador');
-        return;
     }
 
-    // Iniciar cámara solo después de obtener ubicación
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        video.srcObject = stream;
-        video.setAttribute('playsinline', true);
-        await video.play();
-
-        escaneoActivo = true;
-        tick();
-
-        function tick() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-                if (code) {
-                    const id_usuario = document.getElementById('id_usuario').value;
-                    if (!id_usuario) {
-                        alert('Ingrese su ID antes de escanear');
-                        requestAnimationFrame(tick);
-                        return;
-                    }
-                    if (!ultimaPosicion) {
-                        alert('Aún no se pudo obtener su ubicación. Intente de nuevo.');
-                        requestAnimationFrame(tick);
-                        return;
-                    }
-                    notificacion.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
-                    validarCercaniaYRegistrar(code.data, id_usuario, ultimaPosicion);
-                    escaneoActivo = false;
-                    stream.getTracks().forEach(track => track.stop());
-                    return;
-                }
-            }
-            if (escaneoActivo) {
-                requestAnimationFrame(tick);
-            }
-        }
-
-    } catch (err) {
-        console.error('Error al acceder a la cámara:', err);
-        alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
-    }
+    document.getElementById('btnEscanear').addEventListener('click', obtenerUbicacionYIniciarCamara);
 }
