@@ -1,52 +1,107 @@
 // static/script.js
-// Para que la validación de ubicación funcione, el QR debe tener el formato:
-// https://www.google.com/maps/place/@LAT,LNG,zoom|NUMERO
-// Ejemplo: https://www.google.com/maps/place/@-2.9000,-79.0000,17z|1234
-// donde LAT y LNG son la latitud y longitud, y NUMERO es el número adicional a registrar.
+// Mejoras: notificación al usuario, manejo de errores iOS, timeout y visualización de ubicación.
 
-async function iniciarEscaneo() {
+let ultimaPosicion = null;
+let escaneoActivo = false;
+let timeoutEscaneo = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btnEscanear');
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
+    const ubicacionDisplay = document.getElementById('ubicacion'); // Elemento para mostrar coordenadas
 
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        video.srcObject = stream;
-        video.setAttribute('playsinline', true);
-        video.play();
+    if (!btn) {
+        console.error('No se encontró el botón btnEscanear');
+        return;
+    }
 
-        requestAnimationFrame(tick);
-
-        function tick() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-                if (code) {
-                    const id_usuario = document.getElementById('id_usuario').value;
-                    if (id_usuario) {
-                        validarCercaniaYRegistrar(code.data, id_usuario);
-                        stream.getTracks().forEach(track => track.stop());
-                        return;
-                    } else {
-                        alert('Ingrese su ID antes de escanear');
-                    }
-                }
-            }
-            requestAnimationFrame(tick);
+    btn.addEventListener('click', async () => {
+        if (!navigator.geolocation) {
+            alert('Geolocalización no soportada por su navegador');
+            return;
         }
 
-    } catch (err) {
-        console.error('Error al acceder a la cámara:', err);
-        alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
-    }
-}
+        // Obtener ubicación inicial
+        try {
+            ultimaPosicion = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                    pos => resolve(pos.coords),
+                    err => reject(err),
+                    { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+                );
+            });
+            ubicacionDisplay.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
+        } catch (err) {
+            alert('No se pudo obtener la ubicación. Habilite los permisos y recargue la página.');
+            return;
+        }
 
-function validarCercaniaYRegistrar(qrText, id_usuario) {
+        // Monitorear cambios en la ubicación
+        navigator.geolocation.watchPosition(pos => {
+            ultimaPosicion = pos.coords;
+            ubicacionDisplay.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
+        }, err => {
+            console.error('Error al actualizar ubicación:', err);
+        }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+
+        // Acceder a la cámara
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+            video.setAttribute('playsinline', true);
+            await video.play();
+
+            escaneoActivo = true;
+            timeoutEscaneo = setTimeout(() => {
+                if (escaneoActivo) {
+                    escaneoActivo = false;
+                    stream.getTracks().forEach(track => track.stop());
+                    notificacion.textContent = 'Tiempo de escaneo agotado';
+                }
+            }, 60000); // 60 segundos de timeout
+
+            function tick() {
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                    if (code) {
+                        const id_usuario = document.getElementById('id_usuario').value;
+                        if (!id_usuario) {
+                            alert('Ingrese su ID antes de escanear');
+                            requestAnimationFrame(tick);
+                            return;
+                        }
+
+                        notificacion.textContent = `QR detectado. Validando ubicación...`;
+                        validarCercaniaYRegistrar(code.data, id_usuario, ultimaPosicion.latitude, ultimaPosicion.longitude);
+
+                        escaneoActivo = false;
+                        clearTimeout(timeoutEscaneo);
+                        stream.getTracks().forEach(track => track.stop());
+                        return;
+                    }
+                }
+                if (escaneoActivo) {
+                    requestAnimationFrame(tick);
+                }
+            }
+
+            requestAnimationFrame(tick);
+
+        } catch (err) {
+            alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
+        }
+    });
+});
+
+function validarCercaniaYRegistrar(qrText, id_usuario, latUser, lngUser) {
     const partes = qrText.split('|');
     if (partes.length < 2) {
         alert('Formato de link incorrecto. Debe incluir coordenadas y número separados por "|"');
@@ -65,39 +120,26 @@ function validarCercaniaYRegistrar(qrText, id_usuario) {
     const latQR = parseFloat(match[1]);
     const lngQR = parseFloat(match[2]);
 
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const latUser = pos.coords.latitude;
-            const lngUser = pos.coords.longitude;
+    const distancia = distanciaMetros(latUser, lngUser, latQR, lngQR);
+    const tolerancia = 50;
 
-            const distancia = distanciaMetros(latUser, lngUser, latQR, lngQR);
-            const tolerancia = 50; // metros
-
-            if (distancia <= tolerancia) {
-                fetch('/asistencia', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id_usuario, numero_qr })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Asistencia registrada:', data);
-                    document.getElementById('notificacion').textContent = 'QR leído y asistencia registrada correctamente';
-                })
-                .catch(error => {
-                    console.error('Error al registrar asistencia:', error);
-                    alert('Hubo un error al registrar la asistencia');
-                });
-            } else {
-                document.getElementById('notificacion').textContent = 'Usted no está en la ubicación de la agencia';
-            }
-
-        }, err => {
-            console.error('Error obteniendo geolocalización:', err);
-            alert('No se pudo obtener su ubicación');
+    if (distancia <= tolerancia) {
+        fetch('/asistencia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_usuario, numero_qr })
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('notificacion').textContent = 'QR leído y asistencia registrada correctamente';
+            console.log('Asistencia registrada:', data);
+        })
+        .catch(error => {
+            console.error('Error al registrar asistencia:', error);
+            alert('Hubo un error al registrar la asistencia');
         });
     } else {
-        alert('Geolocalización no soportada por su navegador');
+        document.getElementById('notificacion').textContent = 'Usted no está en la ubicación de la agencia';
     }
 }
 
@@ -109,28 +151,4 @@ function distanciaMetros(lat1, lng1, lat2, lng2) {
     const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
-}
-
-function filtrarYDescargar() {
-    const fecha = document.getElementById('filtro_fecha').value;
-    const usuario = document.getElementById('filtro_usuario').value;
-
-    fetch(`/asistencia?fecha=${encodeURIComponent(fecha)}&usuario=${encodeURIComponent(usuario)}`)
-    .then(response => response.json())
-    .then(data => {
-        let contenido = 'ID\tUsuario\tFecha\tHora\tNúmero QR\n';
-        data.forEach(item => {
-            contenido += `${item.id}\t${item.id_usuario}\t${item.fecha}\t${item.hora}\t${item.numero_qr}\n`;
-        });
-
-        const blob = new Blob([contenido], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'registros_asistencia.txt';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    })
-    .catch(error => console.error('Error al filtrar registros:', error));
 }
