@@ -14,3 +14,12 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+
+
+def get_all_records():
+    conn = sqlite3.connect('attendance.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM asistencia')
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

@@ -1,16 +1,25 @@
+<!-- templates/index.html -->
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <title>Marcación con QR</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Attendance App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <h1>Marcación con QR</h1>
-  <label>ID de Persona: <input type="text" id="person_id"></label>
-  <div id="reader" style="width:300px; margin-top: 20px;"></div>
-  <p>Resultado: <span id="result">Esperando QR...</span></p>
+    <h1>Registro de Asistencia</h1>
+    <div>
+        <label for="id_usuario">ID Usuario:</label>
+        <input type="text" id="id_usuario" placeholder="Ingrese su ID">
+    </div>
+    <div>
+        <button onclick="iniciarEscaneo()">Escanear QR</button>
+    </div>
 
-  <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <h2>Registros de Asistencia</h2>
+    <ul id="lista-asistencias"></ul>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
