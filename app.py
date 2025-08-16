@@ -47,6 +47,15 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES usuarios(id)
         )
     """)
+    # Crear usuario por defecto si no existe ninguno
+    c.execute("SELECT COUNT(*) FROM usuarios")
+    count = c.fetchone()[0]
+    if count == 0:
+        default_user = "admin"
+        default_pass = generate_password_hash("admin123")
+        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (default_user, default_pass))
+        print("Usuario por defecto creado: admin / admin123")
+
     conn.commit()
     conn.close()
 
