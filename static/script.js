@@ -1,4 +1,9 @@
 // static/script.js
+// Para que la validación de ubicación funcione, el QR debe tener el formato:
+// https://www.google.com/maps/place/@LAT,LNG,zoom|NUMERO
+// Ejemplo: https://www.google.com/maps/place/@-2.9000,-79.0000,17z|1234
+// donde LAT y LNG son la latitud y longitud, y NUMERO es el número adicional a registrar.
+
 async function iniciarEscaneo() {
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
@@ -43,15 +48,20 @@ async function iniciarEscaneo() {
 
 function validarCercaniaYRegistrar(qrText, id_usuario) {
     const partes = qrText.split('|');
-    const linkQR = partes[0];
-    const numero_qr = partes.length > 1 ? partes[1] : '';
+    if (partes.length < 2) {
+        alert('Formato de link incorrecto. Debe incluir coordenadas y número separados por "|"');
+        return;
+    }
 
-    // Extraer coordenadas del link de Google Maps
+    const linkQR = partes[0];
+    const numero_qr = partes[1];
+
     const match = linkQR.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (!match) {
         alert('Formato de link incorrecto. No se puede validar la ubicación.');
         return;
     }
+
     const latQR = parseFloat(match[1]);
     const lngQR = parseFloat(match[2]);
 
@@ -64,7 +74,6 @@ function validarCercaniaYRegistrar(qrText, id_usuario) {
             const tolerancia = 50; // metros
 
             if (distancia <= tolerancia) {
-                // Registrar asistencia porque está cerca
                 fetch('/asistencia', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -93,7 +102,7 @@ function validarCercaniaYRegistrar(qrText, id_usuario) {
 }
 
 function distanciaMetros(lat1, lng1, lat2, lng2) {
-    const R = 6371000; // metros
+    const R = 6371000;
     const toRad = deg => deg * Math.PI / 180;
     const dLat = toRad(lat2 - lat1);
     const dLng = toRad(lng2 - lng1);
@@ -102,7 +111,6 @@ function distanciaMetros(lat1, lng1, lat2, lng2) {
     return R * c;
 }
 
-// Función para filtrar registros por fecha y usuario y descargar en TXT
 function filtrarYDescargar() {
     const fecha = document.getElementById('filtro_fecha').value;
     const usuario = document.getElementById('filtro_usuario').value;
