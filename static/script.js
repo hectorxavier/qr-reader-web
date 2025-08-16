@@ -24,8 +24,7 @@ async function iniciarEscaneo() {
                 if (code) {
                     const id_usuario = document.getElementById('id_usuario').value;
                     if (id_usuario) {
-                        procesarQR(code.data, id_usuario);
-                        notificacion.textContent = 'QR leído y asistencia registrada correctamente';
+                        validarCercaniaYRegistrar(code.data, id_usuario);
                         stream.getTracks().forEach(track => track.stop());
                         return;
                     } else {
@@ -42,21 +41,65 @@ async function iniciarEscaneo() {
     }
 }
 
-function procesarQR(qrText, id_usuario) {
+function validarCercaniaYRegistrar(qrText, id_usuario) {
     const partes = qrText.split('|');
+    const linkQR = partes[0];
     const numero_qr = partes.length > 1 ? partes[1] : '';
 
-    fetch('/asistencia', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_usuario, numero_qr })
-    })
-    .then(response => response.json())
-    .then(data => console.log('Asistencia registrada:', data))
-    .catch(error => {
-        console.error('Error al registrar asistencia:', error);
-        alert('Hubo un error al registrar la asistencia');
-    });
+    // Extraer coordenadas del link de Google Maps
+    const match = linkQR.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (!match) {
+        alert('Formato de link incorrecto. No se puede validar la ubicación.');
+        return;
+    }
+    const latQR = parseFloat(match[1]);
+    const lngQR = parseFloat(match[2]);
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const latUser = pos.coords.latitude;
+            const lngUser = pos.coords.longitude;
+
+            const distancia = distanciaMetros(latUser, lngUser, latQR, lngQR);
+            const tolerancia = 50; // metros
+
+            if (distancia <= tolerancia) {
+                // Registrar asistencia porque está cerca
+                fetch('/asistencia', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_usuario, numero_qr })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Asistencia registrada:', data);
+                    document.getElementById('notificacion').textContent = 'QR leído y asistencia registrada correctamente';
+                })
+                .catch(error => {
+                    console.error('Error al registrar asistencia:', error);
+                    alert('Hubo un error al registrar la asistencia');
+                });
+            } else {
+                document.getElementById('notificacion').textContent = 'Usted no está en la ubicación de la agencia';
+            }
+
+        }, err => {
+            console.error('Error obteniendo geolocalización:', err);
+            alert('No se pudo obtener su ubicación');
+        });
+    } else {
+        alert('Geolocalización no soportada por su navegador');
+    }
+}
+
+function distanciaMetros(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // metros
+    const toRad = deg => deg * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
 }
 
 // Función para filtrar registros por fecha y usuario y descargar en TXT
