@@ -8,7 +8,13 @@
 </head>
 <body>
 <div class="container mt-4">
-    <h2>Control de Asistencia</h2>
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>Control de Asistencia</h2>
+        <div>
+            <span class="me-3">Usuario: {{ username }}</span>
+            <a href="/logout" class="btn btn-danger btn-sm">Cerrar sesión</a>
+        </div>
+    </div>
     <p>Escanea el QR para registrar tu asistencia.</p>
 
     <!-- Lector QR -->
@@ -20,7 +26,6 @@
     </div>
 </div>
 
-<!-- Script del lector QR -->
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
