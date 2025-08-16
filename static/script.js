@@ -4,26 +4,23 @@
 // Ejemplo: https://www.google.com/maps/place/@-2.9000,-79.0000,17z|1234
 // donde LAT y LNG son la latitud y longitud, y NUMERO es el número adicional a registrar.
 
+let ultimaPosicion = null;
+
 async function iniciarEscaneo() {
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
 
-    // Solicitar ubicación al inicio para garantizar permisos en iOS y Android
+    // Obtener ubicación continuamente para asegurar disponibilidad
     if (navigator.geolocation) {
-        try {
-            await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                    () => resolve(),
-                    (err) => reject(err),
-                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-                );
-            });
-        } catch (err) {
-            alert('Debe permitir el acceso a la ubicación para escanear el QR.');
-            return;
-        }
+        navigator.geolocation.watchPosition(pos => {
+            ultimaPosicion = pos.coords;
+            console.log('Ubicación actualizada:', ultimaPosicion);
+        }, err => {
+            console.error('Error geolocalización:', err);
+            alert('No se pudo obtener la ubicación. Por favor, habilite los permisos.');
+        }, { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 });
     } else {
         alert('Geolocalización no soportada por su navegador');
         return;
@@ -51,7 +48,11 @@ async function iniciarEscaneo() {
                         alert('Ingrese su ID antes de escanear');
                         return;
                     }
-                    validarCercaniaYRegistrar(code.data, id_usuario);
+                    if (!ultimaPosicion) {
+                        alert('Aún no se pudo obtener su ubicación. Intente de nuevo.');
+                        return;
+                    }
+                    validarCercaniaYRegistrar(code.data, id_usuario, ultimaPosicion);
                     stream.getTracks().forEach(track => track.stop());
                     return;
                 }
