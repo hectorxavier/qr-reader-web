@@ -1,4 +1,4 @@
-let qrReader; // Variable global para detenerlo después
+let qrReader;
 
 function initQRScanner() {
     qrReader = new Html5Qrcode("reader");
@@ -7,10 +7,8 @@ function initQRScanner() {
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
         qrCodeMessage => {
-            // Desactivar cámara inmediatamente para que no siga escaneando
             qrReader.stop().then(() => console.log("Scanner detenido"));
 
-            // Solicitar geolocalización al escanear el QR
             if (!navigator.geolocation) {
                 alert("Este navegador no soporta geolocalización.");
                 return;
@@ -34,26 +32,15 @@ function initQRScanner() {
                     .then(data => {
                         alert(`${data.message}\nDistancia: ${data.distancia_m} m`);
                     })
-                    .catch(err => {
-                        alert("Error al enviar datos: " + err);
-                    });
+                    .catch(err => alert("Error al enviar datos: " + err));
 
                 },
-                (error) => {
-                    alert("No se pudo obtener la ubicación: " + error.message);
-                },
+                (error) => alert("No se pudo obtener la ubicación: " + error.message),
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
         },
-        errorMessage => {
-            console.warn("QR no detectado:", errorMessage);
-        }
-    ).catch(err => {
-        console.error("No se pudo iniciar el lector QR:", err);
-    });
+        errorMessage => console.warn("QR no detectado:", errorMessage)
+    ).catch(err => console.error("No se pudo iniciar el lector QR:", err));
 }
 
-// Iniciar scanner al cargar la página
-window.addEventListener("DOMContentLoaded", () => {
-    initQRScanner();
-});
+window.addEventListener("DOMContentLoaded", () => { initQRScanner(); });
