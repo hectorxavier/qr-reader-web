@@ -7,20 +7,24 @@
 let ultimaPosicion = null;
 let escaneoActivo = false;
 
-// Función para iniciar el escaneo tras una interacción del usuario (botón)
+// Función para solicitar permiso de ubicación y escanear QR tras interacción del usuario
 async function iniciarEscaneo() {
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
 
-    // Solicitar ubicación tras interacción para asegurar permisos en iOS
+    // Mostrar mensaje al usuario solicitando permiso
+    alert('Por favor, permita el acceso a su ubicación para poder registrar la asistencia.');
+
+    // Solicitar ubicación tras interacción
     if (navigator.geolocation) {
         try {
             await new Promise((resolve, reject) => {
                 navigator.geolocation.getCurrentPosition(pos => {
                     ultimaPosicion = pos.coords;
                     console.log('Ubicación inicial obtenida:', ultimaPosicion);
+                    notificacion.textContent = `Ubicación obtenida: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
                     resolve();
                 }, err => {
                     console.error('Error geolocalización:', err);
@@ -66,6 +70,7 @@ async function iniciarEscaneo() {
                         requestAnimationFrame(tick);
                         return;
                     }
+                    notificacion.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
                     validarCercaniaYRegistrar(code.data, id_usuario, ultimaPosicion);
                     escaneoActivo = false;
                     stream.getTracks().forEach(track => track.stop());
