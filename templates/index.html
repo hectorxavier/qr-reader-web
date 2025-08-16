@@ -1,34 +1,27 @@
-<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Reader</title>
-    <script src="static/jsQR.js"></script>
-    <script src="static/script.js" defer></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        #preview { border: 1px solid #000; width: 300px; height: 300px; }
-        #ubicacion, #notificacion { margin-top: 10px; font-weight: bold; }
-        #btnEscanear { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
-    </style>
+    <title>QR Attendance App</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <h1>Registro de Asistencia</h1>
+    <div>
+        <label for="id_usuario">ID Usuario:</label>
+        <input type="text" id="id_usuario" placeholder="Ingrese su ID">
+    </div>
+    <div>
+        <button onclick="iniciarEscaneo()">Escanear QR</button>
+    </div>
 
-    <label for="id_usuario">ID Usuario:</label>
-    <input type="text" id="id_usuario" placeholder="Ingrese su ID">
+    <video id="preview" width="300" height="200" autoplay muted playsinline></video>
 
-    <br>
-    <button id="btnEscanear">Escanear QR</button>
+    <div id="notificacion" style="margin-top:10px; color:green; font-weight:bold;"></div>
 
-    <br>
-    <video id="preview" autoplay playsinline></video>
+    <a href="/registros">Ver registros</a>
 
-    <!-- Mostrar ubicación del usuario -->
-    <p id="ubicacion">Ubicación: pendiente...</p>
-
-    <!-- Notificaciones de estado -->
-    <p id="notificacion"></p>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>

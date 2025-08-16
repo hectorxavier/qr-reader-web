@@ -1,110 +1,52 @@
 // static/script.js
-// Mejoras: notificación al usuario, manejo de errores iOS, y visualización de ubicación.
+// Para que la validación de ubicación funcione, el QR debe tener el formato:
+// https://www.google.com/maps/place/@LAT,LNG,zoom|NUMERO
+// Ejemplo: https://www.google.com/maps/place/@-2.9000,-79.0000,17z|1234
+// donde LAT y LNG son la latitud y longitud, y NUMERO es el número adicional a registrar.
 
-let ultimaPosicion = null;
-let escaneoActivo = false;
-let timeoutEscaneo = null;
-
-document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('btnEscanear');
+async function iniciarEscaneo() {
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
-    const ubicacionDisplay = document.getElementById('ubicacion');
 
-    if (!btn) {
-        console.error('No se encontró el botón btnEscanear');
-        return;
-    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.setAttribute('playsinline', true);
+        video.play();
 
-    btn.addEventListener('click', async () => {
-        if (!navigator.geolocation) {
-            alert('Geolocalización no soportada por su navegador');
-            return;
-        }
+        requestAnimationFrame(tick);
 
-        notificacion.textContent = 'Solicitando permiso de ubicación...';
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-        try {
-            ultimaPosicion = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                    pos => resolve(pos.coords),
-                    err => reject(err),
-                    { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
-                );
-            });
-
-            ubicacionDisplay.textContent = `Ubicación obtenida: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
-            notificacion.textContent = 'Ubicación obtenida. Iniciando escaneo de QR...';
-
-        } catch (err) {
-            if (err.code === 1) { // PERMISSION_DENIED
-                alert('Permiso de ubicación denegado. Habilite la ubicación en la configuración del navegador.');
-            } else if (err.code === 2) {
-                alert('No se pudo obtener la ubicación del dispositivo.');
-            } else if (err.code === 3) {
-                alert('Tiempo de espera agotado para obtener la ubicación.');
-            } else {
-                alert('Error desconocido al obtener la ubicación.');
-            }
-            return;
-        }
-
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            video.srcObject = stream;
-            video.setAttribute('playsinline', true);
-            await video.play();
-
-            escaneoActivo = true;
-            timeoutEscaneo = setTimeout(() => {
-                if (escaneoActivo) {
-                    escaneoActivo = false;
-                    stream.getTracks().forEach(track => track.stop());
-                    notificacion.textContent = 'Tiempo de escaneo agotado';
-                }
-            }, 60000);
-
-            function tick() {
-                if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-                    if (code) {
-                        const id_usuario = document.getElementById('id_usuario').value;
-                        if (!id_usuario) {
-                            alert('Ingrese su ID antes de escanear');
-                            requestAnimationFrame(tick);
-                            return;
-                        }
-
-                        notificacion.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}. QR detectado.`;
-                        validarCercaniaYRegistrar(code.data, id_usuario, ultimaPosicion.latitude, ultimaPosicion.longitude);
-
-                        escaneoActivo = false;
-                        clearTimeout(timeoutEscaneo);
+                if (code) {
+                    const id_usuario = document.getElementById('id_usuario').value;
+                    if (id_usuario) {
+                        validarCercaniaYRegistrar(code.data, id_usuario);
                         stream.getTracks().forEach(track => track.stop());
                         return;
+                    } else {
+                        alert('Ingrese su ID antes de escanear');
                     }
                 }
-                if (escaneoActivo) {
-                    requestAnimationFrame(tick);
-                }
             }
-
             requestAnimationFrame(tick);
-
-        } catch (err) {
-            alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
         }
-    });
-});
 
-function validarCercaniaYRegistrar(qrText, id_usuario, latUser, lngUser) {
+    } catch (err) {
+        console.error('Error al acceder a la cámara:', err);
+        alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
+    }
+}
+
+function validarCercaniaYRegistrar(qrText, id_usuario) {
     const partes = qrText.split('|');
     if (partes.length < 2) {
         alert('Formato de link incorrecto. Debe incluir coordenadas y número separados por "|"');
@@ -123,26 +65,39 @@ function validarCercaniaYRegistrar(qrText, id_usuario, latUser, lngUser) {
     const latQR = parseFloat(match[1]);
     const lngQR = parseFloat(match[2]);
 
-    const distancia = distanciaMetros(latUser, lngUser, latQR, lngQR);
-    const tolerancia = 50;
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const latUser = pos.coords.latitude;
+            const lngUser = pos.coords.longitude;
 
-    if (distancia <= tolerancia) {
-        fetch('/asistencia', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_usuario, numero_qr })
-        })
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('notificacion').textContent = 'QR leído y asistencia registrada correctamente';
-            console.log('Asistencia registrada:', data);
-        })
-        .catch(error => {
-            console.error('Error al registrar asistencia:', error);
-            alert('Hubo un error al registrar la asistencia');
+            const distancia = distanciaMetros(latUser, lngUser, latQR, lngQR);
+            const tolerancia = 50; // metros
+
+            if (distancia <= tolerancia) {
+                fetch('/asistencia', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_usuario, numero_qr })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Asistencia registrada:', data);
+                    document.getElementById('notificacion').textContent = 'QR leído y asistencia registrada correctamente';
+                })
+                .catch(error => {
+                    console.error('Error al registrar asistencia:', error);
+                    alert('Hubo un error al registrar la asistencia');
+                });
+            } else {
+                document.getElementById('notificacion').textContent = 'Usted no está en la ubicación de la agencia';
+            }
+
+        }, err => {
+            console.error('Error obteniendo geolocalización:', err);
+            alert('No se pudo obtener su ubicación');
         });
     } else {
-        document.getElementById('notificacion').textContent = 'Usted no está en la ubicación de la agencia';
+        alert('Geolocalización no soportada por su navegador');
     }
 }
 
@@ -154,4 +109,28 @@ function distanciaMetros(lat1, lng1, lat2, lng2) {
     const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+}
+
+function filtrarYDescargar() {
+    const fecha = document.getElementById('filtro_fecha').value;
+    const usuario = document.getElementById('filtro_usuario').value;
+
+    fetch(`/asistencia?fecha=${encodeURIComponent(fecha)}&usuario=${encodeURIComponent(usuario)}`)
+    .then(response => response.json())
+    .then(data => {
+        let contenido = 'ID\tUsuario\tFecha\tHora\tNúmero QR\n';
+        data.forEach(item => {
+            contenido += `${item.id}\t${item.id_usuario}\t${item.fecha}\t${item.hora}\t${item.numero_qr}\n`;
+        });
+
+        const blob = new Blob([contenido], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'registros_asistencia.txt';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    })
+    .catch(error => console.error('Error al filtrar registros:', error));
 }
