@@ -1,20 +1,34 @@
-# QR Reader Web App
+QR Reader con Backend en SQLite
 
-Aplicación web para **lectura de códigos QR** usando **Python (Flask)** y **html5-qrcode**.  
-La aplicación permite leer códigos QR desde la cámara del dispositivo, mostrar el resultado y almacenar los escaneos en memoria.
+Este proyecto es una aplicación web que permite escanear códigos QR usando la cámara del dispositivo y registrar la asistencia de los usuarios en una base de datos SQLite.
 
----
+Incluye validación de la ubicación GPS del usuario y varias mejoras de usabilidad para asegurar un registro confiable.
 
-## Funcionalidades
+✨ Características principales
 
-- Escaneo de códigos QR en tiempo real desde la cámara.
-- Mostrar el contenido del QR en pantalla.
-- Almacenar los QR escaneados en el backend.
-- Consultar los códigos escaneados mediante una API (`/scans`).
+📷 Escaneo automático de QR con la cámara del dispositivo (móviles y PC con cámara).
 
----
+🌍 Validación de ubicación GPS mediante navigator.geolocation.
 
-## Estructura del proyecto
+📌 Registro en SQLite usando backend con Flask.
+
+🔒 El sistema solo registra asistencia si el usuario está cerca de la ubicación definida en el QR (validación de distancia con tolerancia de 50 metros).
+
+⏳ Control de tiempo de escaneo: si no se detecta un QR en 60 segundos, se cancela el proceso automáticamente.
+
+🔔 Notificaciones en pantalla al usuario: estado de ubicación, escaneo correcto, errores o tiempo agotado.
+
+🧾 Gestión de registros:
+
+Consulta por usuario y fecha.
+
+Exportación de registros a archivo .txt.
+
+⚠️ Manejo de errores y permisos:
+
+Si el usuario no concede permisos de cámara o ubicación → se notifica.
+
+Funciona bajo HTTPS (requerido especialmente en Safari iOS).
 
 qr-attendance-app/
 ├── app.py                  # Archivo principal de Flask con endpoints para guardar y mostrar asistencia, compatible con Flask/Werkzeug recientes

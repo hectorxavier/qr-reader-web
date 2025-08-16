@@ -1,27 +1,22 @@
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <title>Control de Asistencia</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Attendance App</title>
-    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Registro de Asistencia</h1>
-    <div>
-        <label for="id_usuario">ID Usuario:</label>
-        <input type="text" id="id_usuario" placeholder="Ingrese su ID">
-    </div>
-    <div>
-        <button onclick="iniciarEscaneo()">Escanear QR</button>
-    </div>
+    <h1>Bienvenido {{ username }}</h1>
 
-    <video id="preview" width="300" height="200" autoplay muted playsinline></video>
+    <button id="start-scan">Escanear QR</button>
 
-    <div id="notificacion" style="margin-top:10px; color:green; font-weight:bold;"></div>
+    {% if is_admin %}
+    <a href="/asistencias" class="btn">Ver registros de asistencias</a>
+    {% endif %}
 
-    <a href="/registros">Ver registros</a>
+    <a href="/logout" class="btn">Cerrar sesión</a>
 
-    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-    <script src="/static/script.js"></script>
+    <video id="preview" width="100%" style="display:none;"></video>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
