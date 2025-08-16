@@ -47,16 +47,14 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES usuarios(id)
         )
     """)
-
-    # Crear usuarios por defecto si no existen
+    # Crear usuario por defecto si no existe ninguno
     c.execute("SELECT COUNT(*) FROM usuarios")
     count = c.fetchone()[0]
     if count == 0:
-        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", 
-                  ("admin", generate_password_hash("admin123")))
-        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", 
-                  ("guest", generate_password_hash("guest123")))
-        print("Usuarios por defecto creados: admin/admin123, guest/guest123")
+        default_user = "admin"
+        default_pass = generate_password_hash("admin123")
+        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (default_user, default_pass))
+        print("Usuario por defecto creado: admin / admin123")
 
     conn.commit()
     conn.close()
@@ -70,3 +68,99 @@ init_db()
 def login():
     if request.method == "POST":
         username = request.form["username"]
+        password = request.form["password"]
+        conn = sqlite3.connect("scans.db")
+        c = conn.cursor()
+        c.execute("SELECT id, password FROM usuarios WHERE username=?", (username,))
+        user = c.fetchone()
+        conn.close()
+        if user and check_password_hash(user[1], password):
+            session["user_id"] = user[0]
+            session["username"] = username
+            return redirect(url_for("index"))
+        else:
+            return "Usuario o contraseña incorrectos", 401
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+# -----------------------------
+# Página principal
+# -----------------------------
+@app.route("/")
+def index():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    return render_template("index.html", username=session.get("username"))
+
+# -----------------------------
+# Escaneo de QR
+# -----------------------------
+@app.route("/scan", methods=["POST"])
+def scan():
+    if "user_id" not in session:
+        return jsonify({"message": "No autorizado"}), 401
+
+    data = request.json
+    qr_data = data.get("qr_data")
+    user_lat = float(data.get("latitude"))
+    user_lon = float(data.get("longitude"))
+
+    try:
+        coords, qr_number = qr_data.split("|")
+        qr_lat, qr_lon = map(float, coords.split(","))
+    except:
+        return jsonify({"message": "Formato de QR inválido"}), 400
+
+    dist = haversine(user_lat, user_lon, qr_lat, qr_lon)
+    status = "VALIDO" if dist <= 50 else "INVALIDO"
+    fecha = time.strftime("%Y-%m-%d")
+    hora = time.strftime("%H:%M:%S")
+
+    conn = sqlite3.connect("scans.db")
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO asistencia (user_id, qr_number, qr_lat, qr_lon, user_lat, user_lon, distancia, estado, fecha, hora)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (session["user_id"], qr_number, qr_lat, qr_lon, user_lat, user_lon, dist, status, fecha, hora))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "message": f"Asistencia {status}",
+        "distancia_m": round(dist, 2),
+        "estado": status
+    })
+
+# -----------------------------
+# Mostrar asistencias
+# -----------------------------
+@app.route("/asistencias")
+def asistencias():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    conn = sqlite3.connect("scans.db")
+    c = conn.cursor()
+    c.execute("""
+        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon, a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
+        FROM asistencia a
+        JOIN usuarios u ON a.user_id = u.id
+        ORDER BY a.id DESC
+    """)
+    registros = c.fetchall()
+    conn.close()
+
+    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon", "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
+    registros_dict = [dict(zip(columnas, r)) for r in registros]
+
+    return render_template("asistencias.html", registros=registros_dict)
+
+# -----------------------------
+# Ejecutar app
+# -----------------------------
+if __name__ == "__main__":
+    app.run(debug=True)
