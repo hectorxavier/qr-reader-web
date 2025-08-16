@@ -1,3 +1,4 @@
+// static/script.js
 async function iniciarEscaneo() {
     const video = document.getElementById('preview');
     const canvas = document.createElement('canvas');
@@ -24,9 +25,7 @@ async function iniciarEscaneo() {
                     const id_usuario = document.getElementById('id_usuario').value;
                     if (id_usuario) {
                         procesarQR(code.data, id_usuario);
-                        // Mostrar notificación
                         notificacion.textContent = 'QR leído y asistencia registrada correctamente';
-                        // Detener cámara después del escaneo
                         stream.getTracks().forEach(track => track.stop());
                         return;
                     } else {
@@ -44,9 +43,8 @@ async function iniciarEscaneo() {
 }
 
 function procesarQR(qrText, id_usuario) {
-    // Separar por '|' para obtener el número después del link
     const partes = qrText.split('|');
-    const numero_qr = partes.length > 1 ? partes[1] : ''; // Tomar lo que sigue después de '|'
+    const numero_qr = partes.length > 1 ? partes[1] : '';
 
     fetch('/asistencia', {
         method: 'POST',
@@ -54,11 +52,34 @@ function procesarQR(qrText, id_usuario) {
         body: JSON.stringify({ id_usuario, numero_qr })
     })
     .then(response => response.json())
-    .then(data => {
-        console.log('Asistencia registrada:', data);
-    })
+    .then(data => console.log('Asistencia registrada:', data))
     .catch(error => {
         console.error('Error al registrar asistencia:', error);
         alert('Hubo un error al registrar la asistencia');
     });
+}
+
+// Función para filtrar registros por fecha y usuario y descargar en TXT
+function filtrarYDescargar() {
+    const fecha = document.getElementById('filtro_fecha').value;
+    const usuario = document.getElementById('filtro_usuario').value;
+
+    fetch(`/asistencia?fecha=${encodeURIComponent(fecha)}&usuario=${encodeURIComponent(usuario)}`)
+    .then(response => response.json())
+    .then(data => {
+        let contenido = 'ID\tUsuario\tFecha\tHora\tNúmero QR\n';
+        data.forEach(item => {
+            contenido += `${item.id}\t${item.id_usuario}\t${item.fecha}\t${item.hora}\t${item.numero_qr}\n`;
+        });
+
+        const blob = new Blob([contenido], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'registros_asistencia.txt';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    })
+    .catch(error => console.error('Error al filtrar registros:', error));
 }
