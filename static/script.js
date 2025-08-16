@@ -16,6 +16,23 @@ async function iniciarEscaneo() {
         video.setAttribute('playsinline', true);
         video.play();
 
+        // Solicitar ubicación antes de iniciar escaneo en iOS y móviles
+        if (navigator.geolocation) {
+            const permiso = await new Promise((resolve) => {
+                navigator.geolocation.getCurrentPosition(
+                    () => resolve(true),
+                    () => resolve(false),
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                );
+            });
+
+            if (!permiso) {
+                alert('Debe permitir el acceso a la ubicación para escanear el QR.');
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
+        }
+
         requestAnimationFrame(tick);
 
         function tick() {
@@ -66,6 +83,7 @@ function validarCercaniaYRegistrar(qrText, id_usuario) {
     const lngQR = parseFloat(match[2]);
 
     if (navigator.geolocation) {
+        const opciones = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
         navigator.geolocation.getCurrentPosition(pos => {
             const latUser = pos.coords.latitude;
             const lngUser = pos.coords.longitude;
@@ -94,8 +112,20 @@ function validarCercaniaYRegistrar(qrText, id_usuario) {
 
         }, err => {
             console.error('Error obteniendo geolocalización:', err);
-            alert('No se pudo obtener su ubicación');
-        });
+            switch(err.code) {
+                case 1:
+                    alert('Permiso de ubicación denegado. Por favor, permita el acceso a la ubicación en su dispositivo.');
+                    break;
+                case 2:
+                    alert('Posición no disponible. No se pudo obtener la ubicación del dispositivo.');
+                    break;
+                case 3:
+                    alert('Tiempo de espera agotado para obtener la ubicación.');
+                    break;
+                default:
+                    alert('Error desconocido al obtener ubicación.');
+            }
+        }, opciones);
     } else {
         alert('Geolocalización no soportada por su navegador');
     }
@@ -118,9 +148,11 @@ function filtrarYDescargar() {
     fetch(`/asistencia?fecha=${encodeURIComponent(fecha)}&usuario=${encodeURIComponent(usuario)}`)
     .then(response => response.json())
     .then(data => {
-        let contenido = 'ID\tUsuario\tFecha\tHora\tNúmero QR\n';
+        let contenido = 'ID	Usuario	Fecha	Hora	Número QR
+';
         data.forEach(item => {
-            contenido += `${item.id}\t${item.id_usuario}\t${item.fecha}\t${item.hora}\t${item.numero_qr}\n`;
+            contenido += `${item.id}	${item.id_usuario}	${item.fecha}	${item.hora}	${item.numero_qr}
+`;
         });
 
         const blob = new Blob([contenido], { type: 'text/plain' });
