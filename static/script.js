@@ -14,10 +14,7 @@ async function iniciarEscaneo() {
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
 
-    // Mostrar mensaje al usuario solicitando permiso
-    alert('Por favor, permita el acceso a su ubicación para poder registrar la asistencia.');
-
-    // Solicitar ubicación tras interacción
+    // Solicitar ubicación directamente en respuesta a la interacción del usuario (sin confirm)
     if (navigator.geolocation) {
         try {
             await new Promise((resolve, reject) => {
