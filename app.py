@@ -11,6 +11,11 @@ init_db()
 def index():
     return render_template('index.html')
 
+@app.route('/registros')
+def pagina_registros():
+    records = get_all_records()
+    return render_template('registros.html', registros=records)
+
 @app.route('/asistencia', methods=['POST'])
 def registrar_asistencia():
     data = request.get_json()
@@ -47,5 +52,4 @@ def mostrar_asistencias():
     return jsonify(asistencia_list), 200
 
 if __name__ == '__main__':
-    # Para desarrollo
     app.run(host='0.0.0.0', port=5000, debug=True)
