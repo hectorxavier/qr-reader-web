@@ -1,46 +1,53 @@
-let qrReader;
+let scanning = false;
+let video = document.getElementById('preview');
 
-function initQRScanner() {
-    qrReader = new Html5Qrcode("reader");
+document.getElementById('start-scan').addEventListener('click', async () => {
+    if (scanning) return;
+    scanning = true;
 
-    qrReader.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        qrCodeMessage => {
-            qrReader.stop().then(() => console.log("Scanner detenido"));
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+        video.play();
+        video.style.display = "block";
 
-            if (!navigator.geolocation) {
-                alert("Este navegador no soporta geolocalización.");
-                return;
-            }
+        // Aquí usar la librería de QR o tu método de escaneo
+        // Simulación de lectura de QR:
+        let qrCodeMessage = prompt("Simula lectura del QR:"); // Reemplazar con tu lector real
 
+        if (qrCodeMessage) {
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const userLat = position.coords.latitude;
-                    const userLon = position.coords.longitude;
+                async (pos) => {
+                    const userLat = pos.coords.latitude;
+                    const userLon = pos.coords.longitude;
 
-                    fetch("/scan", {
+                    const response = await fetch("/scan", {
                         method: "POST",
                         headers: {"Content-Type":"application/json"},
-                        body: JSON.stringify({
-                            qr_data: qrCodeMessage,
-                            latitude: userLat,
-                            longitude: userLon
-                        })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        alert(`${data.message}\nDistancia: ${data.distancia_m} m`);
-                    })
-                    .catch(err => alert("Error al enviar datos: " + err));
+                        credentials: "same-origin",
+                        body: JSON.stringify({ qr_data: qrCodeMessage, latitude: userLat, longitude: userLon })
+                    });
+                    const data = await response.json();
+                    alert(`${data.message}\nDistancia: ${data.distancia_m} m`);
 
+                    // Detener cámara
+                    stream.getTracks().forEach(track => track.stop());
+                    video.style.display = "none";
+                    scanning = false;
                 },
-                (error) => alert("No se pudo obtener la ubicación: " + error.message),
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                (err) => {
+                    alert("Error al obtener ubicación: " + err.message);
+                    scanning = false;
+                }
             );
-        },
-        errorMessage => console.warn("QR no detectado:", errorMessage)
-    ).catch(err => console.error("No se pudo iniciar el lector QR:", err));
-}
+        } else {
+            stream.getTracks().forEach(track => track.stop());
+            video.style.display = "none";
+            scanning = false;
+        }
 
-window.addEventListener("DOMContentLoaded", () => { initQRScanner(); });
+    } catch (err) {
+        alert("Error al acceder a la cámara: " + err.message);
+        scanning = false;
+    }
+});
