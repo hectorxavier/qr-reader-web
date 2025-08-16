@@ -1,29 +1,32 @@
-from flask import Flask, render_template, request, jsonify
-from db import init_db, save_scan, get_scans
+from flask import Flask, request, jsonify
+from db import init_db
+import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
+
 init_db()
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/save', methods=['POST'])
-def save_qr():
+@app.route('/asistencia', methods=['POST'])
+def registrar_asistencia():
     data = request.get_json()
-    person_id = data.get('person_id')
-    qr_address = data.get('qr_address')
-    if not person_id or not qr_address:
-        return jsonify({'message': 'Faltan datos'}), 400
-    save_scan(person_id, qr_address)
-    return jsonify({'message': 'Marcación registrada'})
+    id_usuario = data.get('id_usuario')
+    numero_qr = data.get('numero_qr')
 
-@app.route('/scans', methods=['GET'])
-def scans():
-    data = get_scans()
-    return jsonify(data)
+    if not id_usuario or not numero_qr:
+        return jsonify({'error': 'Datos incompletos'}), 400
 
-if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    fecha = datetime.now().strftime('%Y-%m-%d')
+    hora = datetime.now().strftime('%H:%M:%S')
+
+    conn = sqlite3.connect('attendance.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO asistencia (id_usuario, fecha, hora, numero_qr) VALUES (?, ?, ?, ?)',
+                   (id_usuario, fecha, hora, numero_qr))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': 'Asistencia registrada exitosamente'}), 201
+
+if __name__ == '__main__':
+    app.run(debug=True)

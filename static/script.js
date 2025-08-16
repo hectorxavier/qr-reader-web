@@ -1,24 +1,19 @@
-function onScanSuccess(decodedText, decodedResult) {
-  const person_id = document.getElementById('person_id').value;
-  if (!person_id) {
-      alert('Ingrese su ID antes de escanear');
-      return;
-  }
+function procesarQR(qrText, id_usuario) {
+  const partes = qrText.split('/');
+  const numero_qr = partes[partes.length - 1];
 
-  document.getElementById('result').innerText = decodedText;
-
-  fetch('/save', {
+  fetch('/asistencia', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_id: person_id, qr_address: decodedText })
+      body: JSON.stringify({ id_usuario, numero_qr })
   })
-  .then(res => res.json())
-  .then(data => console.log(data));
+  .then(response => response.json())
+  .then(data => {
+      console.log('Asistencia registrada:', data);
+      alert('Asistencia registrada correctamente');
+  })
+  .catch(error => {
+      console.error('Error al registrar asistencia:', error);
+      alert('Hubo un error al registrar la asistencia');
+  });
 }
-
-function onScanFailure(error) {
-  console.warn(`Escaneo fallido: ${error}`);
-}
-
-let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-html5QrcodeScanner.render(onScanSuccess, onScanFailure);
