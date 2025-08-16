@@ -1,5 +1,5 @@
 // static/script.js
-// Mejoras: notificación al usuario, manejo de errores iOS, timeout y visualización de ubicación.
+// Mejoras: notificación al usuario, manejo de errores iOS, y visualización de ubicación.
 
 let ultimaPosicion = null;
 let escaneoActivo = false;
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const notificacion = document.getElementById('notificacion');
-    const ubicacionDisplay = document.getElementById('ubicacion'); // Elemento para mostrar coordenadas
+    const ubicacionDisplay = document.getElementById('ubicacion');
 
     if (!btn) {
         console.error('No se encontró el botón btnEscanear');
@@ -24,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Obtener ubicación inicial
+        notificacion.textContent = 'Solicitando permiso de ubicación...';
+
         try {
             ultimaPosicion = await new Promise((resolve, reject) => {
                 navigator.geolocation.getCurrentPosition(
@@ -33,21 +34,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
                 );
             });
-            ubicacionDisplay.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
+
+            ubicacionDisplay.textContent = `Ubicación obtenida: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
+            notificacion.textContent = 'Ubicación obtenida. Iniciando escaneo de QR...';
+
         } catch (err) {
-            alert('No se pudo obtener la ubicación. Habilite los permisos y recargue la página.');
+            if (err.code === 1) { // PERMISSION_DENIED
+                alert('Permiso de ubicación denegado. Habilite la ubicación en la configuración del navegador.');
+            } else if (err.code === 2) {
+                alert('No se pudo obtener la ubicación del dispositivo.');
+            } else if (err.code === 3) {
+                alert('Tiempo de espera agotado para obtener la ubicación.');
+            } else {
+                alert('Error desconocido al obtener la ubicación.');
+            }
             return;
         }
 
-        // Monitorear cambios en la ubicación
-        navigator.geolocation.watchPosition(pos => {
-            ultimaPosicion = pos.coords;
-            ubicacionDisplay.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}`;
-        }, err => {
-            console.error('Error al actualizar ubicación:', err);
-        }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
-
-        // Acceder a la cámara
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             video.srcObject = stream;
@@ -61,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     stream.getTracks().forEach(track => track.stop());
                     notificacion.textContent = 'Tiempo de escaneo agotado';
                 }
-            }, 60000); // 60 segundos de timeout
+            }, 60000);
 
             function tick() {
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -79,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return;
                         }
 
-                        notificacion.textContent = `QR detectado. Validando ubicación...`;
+                        notificacion.textContent = `Ubicación actual: Lat ${ultimaPosicion.latitude.toFixed(6)}, Lng ${ultimaPosicion.longitude.toFixed(6)}. QR detectado.`;
                         validarCercaniaYRegistrar(code.data, id_usuario, ultimaPosicion.latitude, ultimaPosicion.longitude);
 
                         escaneoActivo = false;
