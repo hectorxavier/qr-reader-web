@@ -7,13 +7,19 @@
 let ultimaPosicion = null;
 let escaneoActivo = false;
 
-function iniciarEscaneo() {
-    const video = document.getElementById('preview');
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    const notificacion = document.getElementById('notificacion');
+document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btnEscanear');
+    if (!btn) {
+        console.error('No se encontró el botón btnEscanear');
+        return;
+    }
 
-    async function obtenerUbicacionYIniciarCamara() {
+    btn.addEventListener('click', async () => {
+        const video = document.getElementById('preview');
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        const notificacion = document.getElementById('notificacion');
+
         if (!navigator.geolocation) {
             alert('Geolocalización no soportada por su navegador');
             return;
@@ -36,6 +42,7 @@ function iniciarEscaneo() {
             await video.play();
 
             escaneoActivo = true;
+
             function tick() {
                 if (video.readyState === video.HAVE_ENOUGH_DATA) {
                     canvas.width = video.videoWidth;
@@ -62,15 +69,11 @@ function iniciarEscaneo() {
                     requestAnimationFrame(tick);
                 }
             }
+
             requestAnimationFrame(tick);
 
         } catch (err) {
             alert('No se pudo acceder a la cámara. Asegúrate de usar HTTPS y permitir el acceso.');
         }
-    }
-
-    // Remover listener previo si existe para evitar múltiples asignaciones
-    const btn = document.getElementById('btnEscanear');
-    btn.replaceWith(btn.cloneNode(true));
-    document.getElementById('btnEscanear').addEventListener('click', obtenerUbicacionYIniciarCamara);
-}
+    });
+});
