@@ -44,8 +44,9 @@ async function iniciarEscaneo() {
 }
 
 function procesarQR(qrText, id_usuario) {
-    const partes = qrText.split('/');
-    const numero_qr = partes[partes.length - 1];
+    // Separar por '|' para obtener el número después del link
+    const partes = qrText.split('|');
+    const numero_qr = partes.length > 1 ? partes[1] : ''; // Tomar lo que sigue después de '|'
 
     fetch('/asistencia', {
         method: 'POST',
