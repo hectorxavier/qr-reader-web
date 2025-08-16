@@ -1,0 +1,15 @@
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 20px;
+  }
+  
+  #reader {
+    margin: 20px auto;
+  }
+  
+  #result {
+    font-weight: bold;
+    color: green;
+  }
+  
