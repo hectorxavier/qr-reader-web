@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from db import init_db, get_all_records
 import sqlite3
 from datetime import datetime
@@ -6,6 +6,10 @@ from datetime import datetime
 app = Flask(__name__)
 
 init_db()
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 @app.route('/asistencia', methods=['POST'])
 def registrar_asistencia():
@@ -43,4 +47,4 @@ def mostrar_asistencias():
     return jsonify(asistencia_list), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
