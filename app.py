@@ -47,14 +47,16 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES usuarios(id)
         )
     """)
-    # Crear usuario por defecto si no existe ninguno
+
+    # Crear usuarios por defecto si no existen
     c.execute("SELECT COUNT(*) FROM usuarios")
     count = c.fetchone()[0]
     if count == 0:
-        default_user = "admin"
-        default_pass = generate_password_hash("admin123")
-        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (default_user, default_pass))
-        print("Usuario por defecto creado: admin / admin123")
+        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", 
+                  ("admin", generate_password_hash("admin123")))
+        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", 
+                  ("guest", generate_password_hash("guest123")))
+        print("Usuarios por defecto creados: admin/admin123, guest/guest123")
 
     conn.commit()
     conn.close()
@@ -94,54 +96,55 @@ def logout():
 def index():
     if "user_id" not in session:
         return redirect(url_for("login"))
-    return render_template("index.html", username=session.get("username"))
+    username = session.get("username")
+    is_admin = username == "admin"
+    return render_template("index.html", username=username, is_admin=is_admin)
 
 # -----------------------------
 # Escaneo de QR
 # -----------------------------
 @app.route("/scan", methods=["POST"])
 def scan():
-    if "user_id" not in session:
-        return jsonify({"message": "No autorizado"}), 401
-
-    data = request.json
-    qr_data = data.get("qr_data")
-    user_lat = float(data.get("latitude"))
-    user_lon = float(data.get("longitude"))
-
     try:
+        if "user_id" not in session:
+            return jsonify({"message": "No autorizado"}), 401
+
+        data = request.get_json()
+        qr_data = data.get("qr_data")
+        user_lat = float(data.get("latitude"))
+        user_lon = float(data.get("longitude"))
+
         coords, qr_number = qr_data.split("|")
         qr_lat, qr_lon = map(float, coords.split(","))
-    except:
-        return jsonify({"message": "Formato de QR inválido"}), 400
 
-    dist = haversine(user_lat, user_lon, qr_lat, qr_lon)
-    status = "VALIDO" if dist <= 50 else "INVALIDO"
-    fecha = time.strftime("%Y-%m-%d")
-    hora = time.strftime("%H:%M:%S")
+        dist = haversine(user_lat, user_lon, qr_lat, qr_lon)
+        status = "VALIDO" if dist <= 50 else "INVALIDO"
+        fecha = time.strftime("%Y-%m-%d")
+        hora = time.strftime("%H:%M:%S")
 
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO asistencia (user_id, qr_number, qr_lat, qr_lon, user_lat, user_lon, distancia, estado, fecha, hora)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (session["user_id"], qr_number, qr_lat, qr_lon, user_lat, user_lon, dist, status, fecha, hora))
-    conn.commit()
-    conn.close()
+        conn = sqlite3.connect("scans.db")
+        c = conn.cursor()
+        c.execute("""
+            INSERT INTO asistencia (user_id, qr_number, qr_lat, qr_lon, user_lat, user_lon, distancia, estado, fecha, hora)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session["user_id"], qr_number, qr_lat, qr_lon, user_lat, user_lon, dist, status, fecha, hora))
+        conn.commit()
+        conn.close()
 
-    return jsonify({
-        "message": f"Asistencia {status}",
-        "distancia_m": round(dist, 2),
-        "estado": status
-    })
+        return jsonify({"message": f"Asistencia {status}", "distancia_m": round(dist,2), "estado": status})
+
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"message": "Error al procesar QR: " + str(e)}), 400
 
 # -----------------------------
-# Mostrar asistencias
+# Mostrar asistencias (solo admin)
 # -----------------------------
 @app.route("/asistencias")
 def asistencias():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+    if "user_id" not in session or session.get("username") != "admin":
+        return "No autorizado", 403
 
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
