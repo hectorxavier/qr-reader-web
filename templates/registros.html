@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Registros de Asistencia</title>
+</head>
+<body>
+    <h2>Registros de asistencia - Bienvenido {{ username }}</h2>
+    <a href="{{ url_for('logout_registros') }}">Cerrar sesión</a>
+    <table border="1">
+        <tr>
+            {% for col in registros[0].keys() %}
+                <th>{{ col }}</th>
+            {% endfor %}
+        </tr>
+        {% for r in registros %}
+        <tr>
+            {% for val in r.values() %}
+                <td>{{ val }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
