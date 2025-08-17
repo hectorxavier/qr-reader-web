@@ -1,12 +1,16 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
+import os
 
-app = Flask(__name__)
+# -----------------------------
+# Configuración de la app
+# -----------------------------
+app = Flask(__name__, template_folder="templates")
 app.secret_key = "TU_SECRETO_AQUI"
 
 # -----------------------------
-# Inicializar DB (asegurar tabla usuarios)
+# Inicializar DB (usuarios de registros)
 # -----------------------------
 def init_db():
     conn = sqlite3.connect("scans.db")
@@ -18,18 +22,28 @@ def init_db():
             password TEXT NOT NULL
         )
     """)
-    # Crear usuario por defecto solo si no existe
+    # Crear usuario por defecto si no existe
     c.execute("SELECT COUNT(*) FROM usuarios_registros")
     count = c.fetchone()[0]
     if count == 0:
         default_user = "adminreg"
         default_pass = generate_password_hash("admin123")
-        c.execute("INSERT INTO usuarios_registros (username, password) VALUES (?, ?)", (default_user, default_pass))
+        c.execute(
+            "INSERT INTO usuarios_registros (username, password) VALUES (?, ?)",
+            (default_user, default_pass)
+        )
         print("Usuario registros creado: adminreg / admin123")
     conn.commit()
     conn.close()
 
 init_db()
+
+# -----------------------------
+# Ruta raíz → redirige al login
+# -----------------------------
+@app.route("/")
+def home():
+    return redirect(url_for("login_registros"))
 
 # -----------------------------
 # Login registros
@@ -42,7 +56,10 @@ def login_registros():
 
         conn = sqlite3.connect("scans.db")
         c = conn.cursor()
-        c.execute("SELECT id, password FROM usuarios_registros WHERE username=?", (username,))
+        c.execute(
+            "SELECT id, password FROM usuarios_registros WHERE username=?",
+            (username,)
+        )
         user = c.fetchone()
         conn.close()
 
@@ -52,8 +69,14 @@ def login_registros():
             return redirect(url_for("ver_registros"))
         else:
             return "Usuario o contraseña incorrectos", 401
+
+    # Depuración rápida: listar templates
+    print("Templates disponibles:", os.listdir("templates"))
     return render_template("login_registros.html")
 
+# -----------------------------
+# Logout
+# -----------------------------
 @app.route("/logout_registros")
 def logout_registros():
     session.clear()
@@ -79,7 +102,7 @@ def ver_registros():
     registros = c.fetchall()
     conn.close()
 
-    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon", 
+    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon",
                 "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
     registros_dict = [dict(zip(columnas, r)) for r in registros]
 
