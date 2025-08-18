@@ -2,34 +2,24 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registros de Asistencia</title>
-    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Registros de Asistencia</h1>
+    <h2>Registros de asistencia - Bienvenido {{ username }}</h2>
+    <a href="{{ url_for('logout_registros') }}">Cerrar sesión</a>
     <table border="1">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Usuario</th>
-                <th>Fecha</th>
-                <th>Hora</th>
-                <th>Número QR</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for registro in registros %}
-            <tr>
-                <td>{{ registro[0] }}</td>
-                <td>{{ registro[1] }}</td>
-                <td>{{ registro[2] }}</td>
-                <td>{{ registro[3] }}</td>
-                <td>{{ registro[4] }}</td>
-            </tr>
+        <tr>
+            {% for col in registros[0].keys() %}
+                <th>{{ col }}</th>
             {% endfor %}
-        </tbody>
+        </tr>
+        {% for r in registros %}
+        <tr>
+            {% for val in r.values() %}
+                <td>{{ val }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
     </table>
-    <a href="/">Volver a escaneo</a>
 </body>
 </html>
