@@ -2,9 +2,6 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for, s
 import sqlite3, math, time
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# -----------------------------
-# Configuración de la app
-# -----------------------------
 app = Flask(__name__)
 app.secret_key = "TU_SECRETO_AQUI"
 
@@ -26,12 +23,13 @@ def init_db():
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
 
-    # Tabla usuarios
+    # Tabla usuarios con permiso de ver registros
     c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            ver_registros INTEGER DEFAULT 0
         )
     """)
 
@@ -53,13 +51,14 @@ def init_db():
         )
     """)
 
-    # Crear usuario admin por defecto si no existe
+    # Crear usuario por defecto si no existe
     c.execute("SELECT COUNT(*) FROM usuarios")
-    if c.fetchone()[0] == 0:
+    count = c.fetchone()[0]
+    if count == 0:
         default_user = "admin"
         default_pass = generate_password_hash("admin123")
-        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", 
-                  (default_user, default_pass))
+        c.execute("INSERT INTO usuarios (username, password, ver_registros) VALUES (?, ?, ?)",
+                  (default_user, default_pass, 1))
         print("Usuario por defecto creado: admin / admin123")
 
     conn.commit()
@@ -97,7 +96,7 @@ def logout():
     return redirect(url_for("login"))
 
 # -----------------------------
-# Página principal
+# Página principal - Scanner QR
 # -----------------------------
 @app.route("/")
 def index():
@@ -145,22 +144,23 @@ def scan():
     })
 
 # -----------------------------
-# Ver registros de asistencia
+# Ver registros - controlando permisos
 # -----------------------------
 @app.route("/registros")
-def ver_registros():
+def asistencias():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
-    # Solo admin puede ver todos los registros
-    if session.get("username") != "admin":
-        return "No autorizado", 403
-
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
+    c.execute("SELECT ver_registros FROM usuarios WHERE id=?", (session["user_id"],))
+    ver_permiso = c.fetchone()[0]
+
+    if not ver_permiso:
+        return "No tiene permiso para ver los registros", 403
+
     c.execute("""
-        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon,
-               a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
+        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon, a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
         FROM asistencia a
         JOIN usuarios u ON a.user_id = u.id
         ORDER BY a.id DESC
@@ -168,11 +168,41 @@ def ver_registros():
     registros = c.fetchall()
     conn.close()
 
-    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon",
-                "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
+    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon", "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
     registros_dict = [dict(zip(columnas, r)) for r in registros]
 
     return render_template("registros.html", registros=registros_dict)
+
+# -----------------------------
+# Gestión de usuarios
+# -----------------------------
+@app.route("/usuarios", methods=["GET", "POST"])
+def usuarios():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    conn = sqlite3.connect("scans.db")
+    c = conn.cursor()
+
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        ver_registros = 1 if "ver_registros" in request.form else 0
+
+        hashed = generate_password_hash(password)
+        try:
+            c.execute("INSERT INTO usuarios (username, password, ver_registros) VALUES (?, ?, ?)",
+                      (username, hashed, ver_registros))
+            conn.commit()
+            message = "Usuario creado correctamente"
+        except sqlite3.IntegrityError:
+            message = "El usuario ya existe"
+
+    c.execute("SELECT id, username, ver_registros FROM usuarios")
+    usuarios_list = c.fetchall()
+    conn.close()
+
+    return render_template("usuarios.html", usuarios=usuarios_list, message=locals().get("message"))
 
 # -----------------------------
 # Ejecutar app
