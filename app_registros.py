@@ -16,23 +16,23 @@ def init_db():
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
     c.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios_registros (
+        CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
         )
     """)
     # Crear usuario por defecto si no existe
-    c.execute("SELECT COUNT(*) FROM usuarios_registros")
+    c.execute("SELECT COUNT(*) FROM usuarios")
     count = c.fetchone()[0]
     if count == 0:
         default_user = "admin"
         default_pass = generate_password_hash("admin123")
         c.execute(
-            "INSERT INTO usuarios_registros (username, password) VALUES (?, ?)",
+            "INSERT INTO usuarios (username, password) VALUES (?, ?)",
             (default_user, default_pass)
         )
-        print("Usuario registros creado: admin / admin123")
+        print("Usuario creado: admin / admin123")
     conn.commit()
     conn.close()
 

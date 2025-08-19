@@ -147,7 +147,7 @@ def scan():
 # Ver registros - controlando permisos
 # -----------------------------
 @app.route("/registros")
-def asistencias():
+def registros():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
