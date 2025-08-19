@@ -26,13 +26,13 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM usuarios_registros")
     count = c.fetchone()[0]
     if count == 0:
-        default_user = "adminreg"
+        default_user = "admin"
         default_pass = generate_password_hash("admin123")
         c.execute(
             "INSERT INTO usuarios_registros (username, password) VALUES (?, ?)",
             (default_user, default_pass)
         )
-        print("Usuario registros creado: adminreg / admin123")
+        print("Usuario registros creado: admin / admin123")
     conn.commit()
     conn.close()
 
