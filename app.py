@@ -2,11 +2,14 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for, s
 import sqlite3, math, time
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# -----------------------------
+# Configuración de la app
+# -----------------------------
 app = Flask(__name__)
 app.secret_key = "TU_SECRETO_AQUI"
 
 # -----------------------------
-# Función Haversine
+# Función Haversine para calcular distancia
 # -----------------------------
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371e3
@@ -22,6 +25,7 @@ def haversine(lat1, lon1, lat2, lon2):
 def init_db():
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
+
     # Tabla usuarios
     c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -30,6 +34,7 @@ def init_db():
             password TEXT NOT NULL
         )
     """)
+
     # Tabla asistencias
     c.execute("""
         CREATE TABLE IF NOT EXISTS asistencia (
@@ -47,13 +52,14 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES usuarios(id)
         )
     """)
-    # Crear usuario por defecto si no existe ninguno
+
+    # Crear usuario admin por defecto si no existe
     c.execute("SELECT COUNT(*) FROM usuarios")
-    count = c.fetchone()[0]
-    if count == 0:
+    if c.fetchone()[0] == 0:
         default_user = "admin"
         default_pass = generate_password_hash("admin123")
-        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (default_user, default_pass))
+        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", 
+                  (default_user, default_pass))
         print("Usuario por defecto creado: admin / admin123")
 
     conn.commit()
@@ -69,17 +75,20 @@ def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
+
         conn = sqlite3.connect("scans.db")
         c = conn.cursor()
         c.execute("SELECT id, password FROM usuarios WHERE username=?", (username,))
         user = c.fetchone()
         conn.close()
+
         if user and check_password_hash(user[1], password):
             session["user_id"] = user[0]
             session["username"] = username
             return redirect(url_for("index"))
         else:
             return "Usuario o contraseña incorrectos", 401
+
     return render_template("login.html")
 
 @app.route("/logout")
@@ -136,17 +145,22 @@ def scan():
     })
 
 # -----------------------------
-# Mostrar asistencias
+# Ver registros de asistencia
 # -----------------------------
-@app.route("/asistencias")
-def asistencias():
+@app.route("/registros")
+def ver_registros():
     if "user_id" not in session:
         return redirect(url_for("login"))
+
+    # Solo admin puede ver todos los registros
+    if session.get("username") != "admin":
+        return "No autorizado", 403
 
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
     c.execute("""
-        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon, a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
+        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon,
+               a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
         FROM asistencia a
         JOIN usuarios u ON a.user_id = u.id
         ORDER BY a.id DESC
@@ -154,10 +168,11 @@ def asistencias():
     registros = c.fetchall()
     conn.close()
 
-    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon", "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
+    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon",
+                "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
     registros_dict = [dict(zip(columnas, r)) for r in registros]
 
-    return render_template("asistencias.html", registros=registros_dict)
+    return render_template("registros.html", registros=registros_dict)
 
 # -----------------------------
 # Ejecutar app
