@@ -77,13 +77,14 @@ def login():
 
         conn = sqlite3.connect("scans.db")
         c = conn.cursor()
-        c.execute("SELECT id, password FROM usuarios WHERE username=?", (username,))
+        c.execute("SELECT id, password, ver_registros FROM usuarios WHERE username=?", (username,))
         user = c.fetchone()
         conn.close()
 
         if user and check_password_hash(user[1], password):
             session["user_id"] = user[0]
             session["username"] = username
+            session["ver_registros"] = user[2]
             return redirect(url_for("index"))
         else:
             return "Usuario o contraseña incorrectos", 401
@@ -151,16 +152,14 @@ def registros():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
-    c.execute("SELECT ver_registros FROM usuarios WHERE id=?", (session["user_id"],))
-    ver_permiso = c.fetchone()[0]
-
-    if not ver_permiso:
+    if not session.get("ver_registros"):
         return "No tiene permiso para ver los registros", 403
 
+    conn = sqlite3.connect("scans.db")
+    c = conn.cursor()
     c.execute("""
-        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon, a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
+        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon,
+               a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
         FROM asistencia a
         JOIN usuarios u ON a.user_id = u.id
         ORDER BY a.id DESC
@@ -168,7 +167,8 @@ def registros():
     registros = c.fetchall()
     conn.close()
 
-    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon", "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
+    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon",
+                "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
     registros_dict = [dict(zip(columnas, r)) for r in registros]
 
     return render_template("registros.html", registros=registros_dict)
@@ -181,9 +181,13 @@ def usuarios():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
+    if not session.get("ver_registros"):
+        return "No tiene permiso para gestionar usuarios", 403
+
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
 
+    message = None
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
@@ -202,7 +206,7 @@ def usuarios():
     usuarios_list = c.fetchall()
     conn.close()
 
-    return render_template("usuarios.html", usuarios=usuarios_list, message=locals().get("message"))
+    return render_template("usuarios.html", usuarios=usuarios_list, message=message)
 
 # -----------------------------
 # Ejecutar app
