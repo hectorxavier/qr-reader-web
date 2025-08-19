@@ -1,4 +1,4 @@
-let qrReader; // Variable global para poder detenerlo
+let qrReader;
 
 function initQRScanner() {
     qrReader = new Html5Qrcode("reader");
@@ -7,7 +7,7 @@ function initQRScanner() {
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
         qrCodeMessage => {
-            // Solicitar geolocalización al escanear el QR
+
             if (!navigator.geolocation) {
                 alert("Este navegador no soporta geolocalización.");
                 return;
@@ -31,22 +31,21 @@ function initQRScanner() {
                     .then(data => {
                         alert(`${data.message}\nDistancia: ${data.distancia_m} m`);
 
-                        // Solo detener el scanner si el QR es válido
+                        // Detener solo si el servidor confirma que el QR es válido
                         if (data.estado === "VALIDO") {
                             qrReader.stop().then(() => console.log("Scanner detenido"));
                         }
-
-                        // Si es inválido, el scanner sigue activo automáticamente
+                        // Si es INVÁLIDO, el scanner sigue activo automáticamente
                     })
                     .catch(err => {
-                        alert("Error al enviar datos: " + err);
+                        console.error("Error al enviar datos:", err);
                         // Mantener scanner activo en caso de error
                     });
 
                 },
                 (error) => {
                     alert("No se pudo obtener la ubicación: " + error.message);
-                    // Mantener scanner activo en caso de fallo de geolocalización
+                    // Mantener scanner activo si falla geolocalización
                 },
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
@@ -59,7 +58,6 @@ function initQRScanner() {
     });
 }
 
-// Iniciar scanner al cargar la página
 window.addEventListener("DOMContentLoaded", () => {
     initQRScanner();
 });
