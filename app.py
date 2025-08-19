@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.secret_key = "TU_SECRETO_AQUI"
 
 # -----------------------------
-# Función Haversine
+# Función Haversine para calcular distancia
 # -----------------------------
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371e3
@@ -23,13 +23,14 @@ def init_db():
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
 
-    # Tabla usuarios con permiso de ver registros
+    # Tabla usuarios
     c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            ver_registros INTEGER DEFAULT 0
+            ver_registros INTEGER DEFAULT 0,
+            is_admin INTEGER DEFAULT 0
         )
     """)
 
@@ -51,14 +52,13 @@ def init_db():
         )
     """)
 
-    # Usuario administrador por defecto
+    # Usuario por defecto
     c.execute("SELECT COUNT(*) FROM usuarios")
-    count = c.fetchone()[0]
-    if count == 0:
+    if c.fetchone()[0] == 0:
         default_user = "admin"
         default_pass = generate_password_hash("admin123")
-        c.execute("INSERT INTO usuarios (username, password, ver_registros) VALUES (?, ?, ?)",
-                  (default_user, default_pass, 1))
+        c.execute("INSERT INTO usuarios (username, password, ver_registros, is_admin) VALUES (?, ?, ?, ?)",
+                  (default_user, default_pass, 1, 1))
         print("Usuario por defecto creado: admin / admin123")
 
     conn.commit()
@@ -77,13 +77,15 @@ def login():
 
         conn = sqlite3.connect("scans.db")
         c = conn.cursor()
-        c.execute("SELECT id, password FROM usuarios WHERE username=?", (username,))
+        c.execute("SELECT id, password, ver_registros, is_admin FROM usuarios WHERE username=?", (username,))
         user = c.fetchone()
         conn.close()
 
         if user and check_password_hash(user[1], password):
             session["user_id"] = user[0]
             session["username"] = username
+            session["ver_registros"] = bool(user[2])
+            session["is_admin"] = bool(user[3])
             return redirect(url_for("index"))
         else:
             return "Usuario o contraseña incorrectos", 401
@@ -96,7 +98,7 @@ def logout():
     return redirect(url_for("login"))
 
 # -----------------------------
-# Página principal - Scanner QR
+# Página principal
 # -----------------------------
 @app.route("/")
 def index():
@@ -137,27 +139,18 @@ def scan():
     conn.commit()
     conn.close()
 
-    return jsonify({
-        "message": f"Asistencia {status}",
-        "distancia_m": round(dist, 2),
-        "estado": status
-    })
+    return jsonify({"message": f"Asistencia {status}", "distancia_m": round(dist, 2), "estado": status})
 
 # -----------------------------
 # Ver registros
 # -----------------------------
 @app.route("/registros")
 def registros():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+    if "user_id" not in session or not session.get("ver_registros"):
+        return "No tiene permiso para ver los registros", 403
 
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
-    c.execute("SELECT ver_registros FROM usuarios WHERE id=?", (session["user_id"],))
-    ver_permiso = c.fetchone()[0]
-    if not ver_permiso:
-        return "No tiene permiso para ver los registros", 403
-
     c.execute("""
         SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon, a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
         FROM asistencia a
@@ -173,88 +166,72 @@ def registros():
     return render_template("registros.html", registros=registros_dict)
 
 # -----------------------------
-# Gestión de usuarios vía AJAX
-# -----------------------------
-# -----------------------------
-# Gestión de usuarios vía AJAX (solo administradores)
+# Gestión de usuarios (AJAX)
 # -----------------------------
 @app.route("/usuarios")
 def usuarios():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if not session.get("ver_registros"):
+    if "user_id" not in session or not session.get("is_admin"):
         return "No tiene permiso para gestionar usuarios", 403
 
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
-    c.execute("SELECT id, username, ver_registros FROM usuarios")
-    rows = c.fetchall()
-    usuarios_list = [{"id": r[0], "username": r[1], "ver_registros": r[2]} for r in rows]
+    c.execute("SELECT id, username, ver_registros, is_admin FROM usuarios")
+    usuarios_list = c.fetchall()
     conn.close()
 
-    return render_template("usuarios.html", usuarios=usuarios_list)
+    usuarios_dict = [{"id": u[0], "username": u[1], "ver_registros": u[2], "is_admin": u[3]} for u in usuarios_list]
+    return render_template("usuarios.html", usuarios=usuarios_dict)
 
-# Agregar usuario
 @app.route("/usuarios/add", methods=["POST"])
 def add_usuario():
-    if "user_id" not in session or not session.get("ver_registros"):
+    if "user_id" not in session or not session.get("is_admin"):
         return "No autorizado", 403
 
     data = request.json
     username = data.get("username")
     password = data.get("password")
-    can_view_logs = int(data.get("can_view_logs", 0))
-
-    if not username or not password:
-        return "Usuario y contraseña son requeridos", 400
+    ver_registros = int(data.get("can_view_logs", 0))
+    is_admin = int(data.get("is_admin", 0))
 
     hashed = generate_password_hash(password)
     try:
         conn = sqlite3.connect("scans.db")
         c = conn.cursor()
-        c.execute("INSERT INTO usuarios (username, password, ver_registros) VALUES (?, ?, ?)",
-                  (username, hashed, can_view_logs))
+        c.execute("INSERT INTO usuarios (username, password, ver_registros, is_admin) VALUES (?, ?, ?, ?)",
+                  (username, hashed, ver_registros, is_admin))
         conn.commit()
         conn.close()
-        return jsonify({"message": "Usuario agregado correctamente"})
+        return "OK", 200
     except sqlite3.IntegrityError:
         return "El usuario ya existe", 400
 
-# Editar usuario
 @app.route("/usuarios/edit/<int:user_id>", methods=["POST"])
 def edit_usuario(user_id):
-    if "user_id" not in session or not session.get("ver_registros"):
+    if "user_id" not in session or not session.get("is_admin"):
         return "No autorizado", 403
 
     data = request.json
     username = data.get("username")
     password = data.get("password")
-    can_view_logs = int(data.get("can_view_logs", 0))
-
-    if not username:
-        return "El nombre de usuario es requerido", 400
+    ver_registros = int(data.get("can_view_logs", 0))
+    is_admin = int(data.get("is_admin", 0))
 
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
-    try:
-        if password:
-            hashed = generate_password_hash(password)
-            c.execute("UPDATE usuarios SET username=?, password=?, ver_registros=? WHERE id=?",
-                      (username, hashed, can_view_logs, user_id))
-        else:
-            c.execute("UPDATE usuarios SET username=?, ver_registros=? WHERE id=?",
-                      (username, can_view_logs, user_id))
-        conn.commit()
-        conn.close()
-        return jsonify({"message": "Usuario actualizado correctamente"})
-    except sqlite3.IntegrityError:
-        return "El usuario ya existe", 400
+    if password:
+        hashed = generate_password_hash(password)
+        c.execute("UPDATE usuarios SET username=?, password=?, ver_registros=?, is_admin=? WHERE id=?",
+                  (username, hashed, ver_registros, is_admin, user_id))
+    else:
+        c.execute("UPDATE usuarios SET username=?, ver_registros=?, is_admin=? WHERE id=?",
+                  (username, ver_registros, is_admin, user_id))
+    conn.commit()
+    conn.close()
+    return "OK", 200
 
-# Eliminar usuario
 @app.route("/usuarios/delete/<int:user_id>", methods=["POST"])
 def delete_usuario(user_id):
-    if "user_id" not in session or not session.get("ver_registros"):
+    if "user_id" not in session or not session.get("is_admin"):
         return "No autorizado", 403
 
     conn = sqlite3.connect("scans.db")
@@ -262,7 +239,7 @@ def delete_usuario(user_id):
     c.execute("DELETE FROM usuarios WHERE id=?", (user_id,))
     conn.commit()
     conn.close()
-    return jsonify({"message": "Usuario eliminado correctamente"})
+    return "OK", 200
 
 # -----------------------------
 # Ejecutar app
