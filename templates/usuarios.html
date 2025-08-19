@@ -1,4 +1,4 @@
-<!-- Formulario para crear nuevo usuario -->
+<!-- Formulario para agregar nuevo usuario -->
 <div class="card mt-3">
     <div class="card-header">Agregar Usuario</div>
     <div class="card-body">
@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     formAdd.addEventListener("submit", async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(formAdd));
-        data.can_view_logs = parseInt(data.can_view_logs); // convertir a entero
+        data.can_view_logs = parseInt(data.can_view_logs);
 
         const res = await fetch("/usuarios/add", {
             method: "POST",

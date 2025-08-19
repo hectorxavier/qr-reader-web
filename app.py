@@ -175,76 +175,94 @@ def registros():
 # -----------------------------
 # Gestión de usuarios vía AJAX
 # -----------------------------
-@app.route("/usuarios", methods=["GET"])
+# -----------------------------
+# Gestión de usuarios vía AJAX (solo administradores)
+# -----------------------------
+@app.route("/usuarios")
 def usuarios():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
+    if not session.get("ver_registros"):
+        return "No tiene permiso para gestionar usuarios", 403
+
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
     c.execute("SELECT id, username, ver_registros FROM usuarios")
-    usuarios_list = c.fetchall()
+    rows = c.fetchall()
+    usuarios_list = [{"id": r[0], "username": r[1], "ver_registros": r[2]} for r in rows]
     conn.close()
 
     return render_template("usuarios.html", usuarios=usuarios_list)
 
+# Agregar usuario
 @app.route("/usuarios/add", methods=["POST"])
-def usuarios_add():
-    if "user_id" not in session:
-        return jsonify({"error": "No autorizado"}), 401
+def add_usuario():
+    if "user_id" not in session or not session.get("ver_registros"):
+        return "No autorizado", 403
 
     data = request.json
     username = data.get("username")
     password = data.get("password")
-    can_view_logs = 1 if int(data.get("can_view_logs", 0)) else 0
+    can_view_logs = int(data.get("can_view_logs", 0))
+
+    if not username or not password:
+        return "Usuario y contraseña son requeridos", 400
 
     hashed = generate_password_hash(password)
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
     try:
+        conn = sqlite3.connect("scans.db")
+        c = conn.cursor()
         c.execute("INSERT INTO usuarios (username, password, ver_registros) VALUES (?, ?, ?)",
                   (username, hashed, can_view_logs))
         conn.commit()
         conn.close()
-        return jsonify({"message": "Usuario creado correctamente"})
+        return jsonify({"message": "Usuario agregado correctamente"})
     except sqlite3.IntegrityError:
-        conn.close()
-        return jsonify({"error": "El usuario ya existe"}), 400
+        return "El usuario ya existe", 400
 
+# Editar usuario
 @app.route("/usuarios/edit/<int:user_id>", methods=["POST"])
-def usuarios_edit(user_id):
-    if "user_id" not in session:
-        return jsonify({"error": "No autorizado"}), 401
+def edit_usuario(user_id):
+    if "user_id" not in session or not session.get("ver_registros"):
+        return "No autorizado", 403
 
     data = request.json
     username = data.get("username")
     password = data.get("password")
-    can_view_logs = 1 if int(data.get("can_view_logs", 0)) else 0
+    can_view_logs = int(data.get("can_view_logs", 0))
+
+    if not username:
+        return "El nombre de usuario es requerido", 400
 
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
-    if password:
-        hashed = generate_password_hash(password)
-        c.execute("UPDATE usuarios SET username=?, password=?, ver_registros=? WHERE id=?",
-                  (username, hashed, can_view_logs, user_id))
-    else:
-        c.execute("UPDATE usuarios SET username=?, ver_registros=? WHERE id=?",
-                  (username, can_view_logs, user_id))
-    conn.commit()
-    conn.close()
-    return jsonify({"message": "Usuario actualizado"})
+    try:
+        if password:
+            hashed = generate_password_hash(password)
+            c.execute("UPDATE usuarios SET username=?, password=?, ver_registros=? WHERE id=?",
+                      (username, hashed, can_view_logs, user_id))
+        else:
+            c.execute("UPDATE usuarios SET username=?, ver_registros=? WHERE id=?",
+                      (username, can_view_logs, user_id))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Usuario actualizado correctamente"})
+    except sqlite3.IntegrityError:
+        return "El usuario ya existe", 400
 
+# Eliminar usuario
 @app.route("/usuarios/delete/<int:user_id>", methods=["POST"])
-def usuarios_delete(user_id):
-    if "user_id" not in session:
-        return jsonify({"error": "No autorizado"}), 401
+def delete_usuario(user_id):
+    if "user_id" not in session or not session.get("ver_registros"):
+        return "No autorizado", 403
 
     conn = sqlite3.connect("scans.db")
     c = conn.cursor()
     c.execute("DELETE FROM usuarios WHERE id=?", (user_id,))
     conn.commit()
     conn.close()
-    return jsonify({"message": "Usuario eliminado"})
+    return jsonify({"message": "Usuario eliminado correctamente"})
 
 # -----------------------------
 # Ejecutar app
