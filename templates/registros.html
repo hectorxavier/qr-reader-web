@@ -8,6 +8,8 @@
         body { font-family: Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 0; }
         header { background: #007bff; color: white; padding: 1rem; text-align: center; }
         main { padding: 1rem; }
+        form { margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        input, select { padding: 0.5rem; border: 1px solid #ccc; border-radius: 5px; }
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
         th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; }
         th { background-color: #007bff; color: white; }
@@ -15,6 +17,8 @@
         .btn-container { margin-top: 1rem; text-align: center; }
         button { padding: 0.5rem 1rem; border: none; border-radius: 5px; background: #007bff; color: white; cursor: pointer; }
         button:hover { background: #0056b3; }
+        .btn-download { background: #28a745; }
+        .btn-download:hover { background: #218838; }
     </style>
 </head>
 <body>
@@ -22,6 +26,26 @@
         <h1>Registros de Asistencia</h1>
     </header>
     <main>
+        <!-- Filtros -->
+        <form method="get" action="{{ url_for('registros') }}">
+            <label for="usuario">Usuario:</label>
+            <select name="usuario" id="usuario">
+                <option value="">Todos</option>
+                {% for u in usuarios %}
+                <option value="{{ u }}" {% if request.args.get('usuario') == u %}selected{% endif %}>{{ u }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="fecha_inicio">Desde:</label>
+            <input type="date" id="fecha_inicio" name="fecha_inicio" value="{{ request.args.get('fecha_inicio', '') }}">
+
+            <label for="fecha_fin">Hasta:</label>
+            <input type="date" id="fecha_fin" name="fecha_fin" value="{{ request.args.get('fecha_fin', '') }}">
+
+            <button type="submit">Filtrar</button>
+        </form>
+
+        <!-- Tabla -->
         <table>
             <thead>
                 <tr>
@@ -48,9 +72,17 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        <!-- Botones -->
         <div class="btn-container">
-            <a href="{{ url_for('index') }}"><button>Volver</button></a>
-            <a href="{{ url_for('logout') }}"><button>Salir</button></a>
+            <a href="{{ url_for('index') }}"><button type="button">Volver</button></a>
+            <a href="{{ url_for('logout') }}"><button type="button">Salir</button></a>
+            <a href="{{ url_for('descargar_registros', 
+                                 usuario=request.args.get('usuario', ''), 
+                                 fecha_inicio=request.args.get('fecha_inicio', ''), 
+                                 fecha_fin=request.args.get('fecha_fin', '')) }}">
+                <button type="button" class="btn-download">Descargar TXT</button>
+            </a>
         </div>
     </main>
 </body>

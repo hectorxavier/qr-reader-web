@@ -146,24 +146,63 @@ def scan():
 # -----------------------------
 @app.route("/registros")
 def registros():
-    if "user_id" not in session or not session.get("ver_registros"):
-        return "No tiene permiso para ver los registros", 403
+    usuario = request.args.get("usuario", "")
+    fecha_inicio = request.args.get("fecha_inicio", "")
+    fecha_fin = request.args.get("fecha_fin", "")
 
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
-    c.execute("""
-        SELECT a.id, u.username, a.qr_number, a.qr_lat, a.qr_lon, a.user_lat, a.user_lon, a.distancia, a.estado, a.fecha, a.hora
-        FROM asistencia a
-        JOIN usuarios u ON a.user_id = u.id
-        ORDER BY a.id DESC
-    """)
-    registros = c.fetchall()
+    conn = get_db_connection()
+    query = "SELECT * FROM registros WHERE 1=1"
+    params = []
+
+    if usuario:
+        query += " AND username = ?"
+        params.append(usuario)
+    if fecha_inicio:
+        query += " AND fecha >= ?"
+        params.append(fecha_inicio)
+    if fecha_fin:
+        query += " AND fecha <= ?"
+        params.append(fecha_fin)
+
+    registros = conn.execute(query, params).fetchall()
+    usuarios = [row["username"] for row in conn.execute("SELECT DISTINCT username FROM registros").fetchall()]
     conn.close()
 
-    columnas = ["id", "username", "qr_number", "qr_lat", "qr_lon", "user_lat", "user_lon", "distancia", "estado", "fecha", "hora"]
-    registros_dict = [dict(zip(columnas, r)) for r in registros]
+    return render_template("registros.html", registros=registros, usuarios=usuarios)
 
-    return render_template("registros.html", registros=registros_dict)
+@app.route("/registros/descargar")
+def descargar_registros():
+    usuario = request.args.get("usuario", "")
+    fecha_inicio = request.args.get("fecha_inicio", "")
+    fecha_fin = request.args.get("fecha_fin", "")
+
+    conn = get_db_connection()
+    query = "SELECT * FROM registros WHERE 1=1"
+    params = []
+
+    if usuario:
+        query += " AND username = ?"
+        params.append(usuario)
+    if fecha_inicio:
+        query += " AND fecha >= ?"
+        params.append(fecha_inicio)
+    if fecha_fin:
+        query += " AND fecha <= ?"
+        params.append(fecha_fin)
+
+    registros = conn.execute(query, params).fetchall()
+    conn.close()
+
+    contenido = "ID | Usuario | QR | Distancia (m) | Estado | Fecha | Hora\n"
+    contenido += "-"*70 + "\n"
+    for r in registros:
+        contenido += f"{r['id']} | {r['username']} | {r['qr_number']} | {round(r['distancia'],2)} | {r['estado']} | {r['fecha']} | {r['hora']}\n"
+
+    return Response(
+        contenido,
+        mimetype="text/plain",
+        headers={"Content-Disposition": "attachment;filename=registros.txt"}
+    )
 
 # -----------------------------
 # Gestión de usuarios (AJAX)
