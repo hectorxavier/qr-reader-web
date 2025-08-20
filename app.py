@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for, session
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session, Response
 import sqlite3, math, time
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -15,6 +15,14 @@ def haversine(lat1, lon1, lat2, lon2):
     dlambda = math.radians(lon2 - lon1)
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return 2*R*math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+# -----------------------------
+# DB Helper
+# -----------------------------
+def get_db_connection():
+    conn = sqlite3.connect("scans.db")
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # -----------------------------
 # Inicializar DB
@@ -75,17 +83,15 @@ def login():
         username = request.form["username"]
         password = request.form["password"]
 
-        conn = sqlite3.connect("scans.db")
-        c = conn.cursor()
-        c.execute("SELECT id, password, ver_registros, is_admin FROM usuarios WHERE username=?", (username,))
-        user = c.fetchone()
+        conn = get_db_connection()
+        user = conn.execute("SELECT id, password, ver_registros, is_admin FROM usuarios WHERE username=?", (username,)).fetchone()
         conn.close()
 
-        if user and check_password_hash(user[1], password):
-            session["user_id"] = user[0]
+        if user and check_password_hash(user["password"], password):
+            session["user_id"] = user["id"]
             session["username"] = username
-            session["ver_registros"] = bool(user[2])
-            session["is_admin"] = bool(user[3])
+            session["ver_registros"] = bool(user["ver_registros"])
+            session["is_admin"] = bool(user["is_admin"])
             return redirect(url_for("index"))
         else:
             return "Usuario o contraseña incorrectos", 401
@@ -130,9 +136,8 @@ def scan():
     fecha = time.strftime("%Y-%m-%d")
     hora = time.strftime("%H:%M:%S")
 
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
-    c.execute("""
+    conn = get_db_connection()
+    conn.execute("""
         INSERT INTO asistencia (user_id, qr_number, qr_lat, qr_lon, user_lat, user_lon, distancia, estado, fecha, hora)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (session["user_id"], qr_number, qr_lat, qr_lon, user_lat, user_lon, dist, status, fecha, hora))
@@ -142,52 +147,71 @@ def scan():
     return jsonify({"message": f"Asistencia {status}", "distancia_m": round(dist, 2), "estado": status})
 
 # -----------------------------
-# Ver registros
+# Ver registros (con filtros)
 # -----------------------------
 @app.route("/registros")
 def registros():
+    if "user_id" not in session or not session.get("ver_registros"):
+        return "No autorizado", 403
+
     usuario = request.args.get("usuario", "")
     fecha_inicio = request.args.get("fecha_inicio", "")
     fecha_fin = request.args.get("fecha_fin", "")
 
     conn = get_db_connection()
-    query = "SELECT * FROM registros WHERE 1=1"
+    query = """
+        SELECT a.id, u.username, a.qr_number, a.distancia, a.estado, a.fecha, a.hora
+        FROM asistencia a
+        JOIN usuarios u ON a.user_id = u.id
+        WHERE 1=1
+    """
     params = []
 
     if usuario:
-        query += " AND username = ?"
+        query += " AND u.username = ?"
         params.append(usuario)
     if fecha_inicio:
-        query += " AND fecha >= ?"
+        query += " AND a.fecha >= ?"
         params.append(fecha_inicio)
     if fecha_fin:
-        query += " AND fecha <= ?"
+        query += " AND a.fecha <= ?"
         params.append(fecha_fin)
 
     registros = conn.execute(query, params).fetchall()
-    usuarios = [row["username"] for row in conn.execute("SELECT DISTINCT username FROM registros").fetchall()]
+    usuarios = [row["username"] for row in conn.execute("SELECT DISTINCT username FROM usuarios").fetchall()]
     conn.close()
 
     return render_template("registros.html", registros=registros, usuarios=usuarios)
 
+# -----------------------------
+# Descargar registros en TXT
+# -----------------------------
 @app.route("/registros/descargar")
 def descargar_registros():
+    if "user_id" not in session or not session.get("ver_registros"):
+        return "No autorizado", 403
+
     usuario = request.args.get("usuario", "")
     fecha_inicio = request.args.get("fecha_inicio", "")
     fecha_fin = request.args.get("fecha_fin", "")
 
     conn = get_db_connection()
-    query = "SELECT * FROM registros WHERE 1=1"
+    query = """
+        SELECT a.id, u.username, a.qr_number, a.distancia, a.estado, a.fecha, a.hora
+        FROM asistencia a
+        JOIN usuarios u ON a.user_id = u.id
+        WHERE 1=1
+    """
     params = []
 
     if usuario:
-        query += " AND username = ?"
+        query += " AND u.username = ?"
         params.append(usuario)
     if fecha_inicio:
-        query += " AND fecha >= ?"
+        query += " AND a.fecha >= ?"
         params.append(fecha_inicio)
     if fecha_fin:
-        query += " AND fecha <= ?"
+        query += " AND a.fecha <= ?"
         params.append(fecha_fin)
 
     registros = conn.execute(query, params).fetchall()
@@ -205,20 +229,18 @@ def descargar_registros():
     )
 
 # -----------------------------
-# Gestión de usuarios (AJAX)
+# Gestión de usuarios (Admin)
 # -----------------------------
 @app.route("/usuarios")
 def usuarios():
     if "user_id" not in session or not session.get("is_admin"):
         return "No tiene permiso para gestionar usuarios", 403
 
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
-    c.execute("SELECT id, username, ver_registros, is_admin FROM usuarios")
-    usuarios_list = c.fetchall()
+    conn = get_db_connection()
+    usuarios_list = conn.execute("SELECT id, username, ver_registros, is_admin FROM usuarios").fetchall()
     conn.close()
 
-    usuarios_dict = [{"id": u[0], "username": u[1], "ver_registros": u[2], "is_admin": u[3]} for u in usuarios_list]
+    usuarios_dict = [{"id": u["id"], "username": u["username"], "ver_registros": u["ver_registros"], "is_admin": u["is_admin"]} for u in usuarios_list]
     return render_template("usuarios.html", usuarios=usuarios_dict)
 
 @app.route("/usuarios/add", methods=["POST"])
@@ -234,10 +256,9 @@ def add_usuario():
 
     hashed = generate_password_hash(password)
     try:
-        conn = sqlite3.connect("scans.db")
-        c = conn.cursor()
-        c.execute("INSERT INTO usuarios (username, password, ver_registros, is_admin) VALUES (?, ?, ?, ?)",
-                  (username, hashed, ver_registros, is_admin))
+        conn = get_db_connection()
+        conn.execute("INSERT INTO usuarios (username, password, ver_registros, is_admin) VALUES (?, ?, ?, ?)",
+                     (username, hashed, ver_registros, is_admin))
         conn.commit()
         conn.close()
         return "OK", 200
@@ -255,15 +276,14 @@ def edit_usuario(user_id):
     ver_registros = int(data.get("can_view_logs", 0))
     is_admin = int(data.get("is_admin", 0))
 
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
+    conn = get_db_connection()
     if password:
         hashed = generate_password_hash(password)
-        c.execute("UPDATE usuarios SET username=?, password=?, ver_registros=?, is_admin=? WHERE id=?",
-                  (username, hashed, ver_registros, is_admin, user_id))
+        conn.execute("UPDATE usuarios SET username=?, password=?, ver_registros=?, is_admin=? WHERE id=?",
+                     (username, hashed, ver_registros, is_admin, user_id))
     else:
-        c.execute("UPDATE usuarios SET username=?, ver_registros=?, is_admin=? WHERE id=?",
-                  (username, ver_registros, is_admin, user_id))
+        conn.execute("UPDATE usuarios SET username=?, ver_registros=?, is_admin=? WHERE id=?",
+                     (username, ver_registros, is_admin, user_id))
     conn.commit()
     conn.close()
     return "OK", 200
@@ -273,9 +293,8 @@ def delete_usuario(user_id):
     if "user_id" not in session or not session.get("is_admin"):
         return "No autorizado", 403
 
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
-    c.execute("DELETE FROM usuarios WHERE id=?", (user_id,))
+    conn = get_db_connection()
+    conn.execute("DELETE FROM usuarios WHERE id=?", (user_id,))
     conn.commit()
     conn.close()
     return "OK", 200
