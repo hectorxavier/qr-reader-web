@@ -18,8 +18,8 @@
         .btn-container { margin-top: 1rem; text-align: center; }
         button { padding: 0.5rem 1rem; border: none; border-radius: 5px; background: #007bff; color: white; cursor: pointer; }
         button:hover { background: #0056b3; }
-        .btn-download { background: #28a745; }
-        .btn-download:hover { background: #218838; }
+        .btn-download { background: #4CAF50; color: white; padding: 8px 12px; text-decoration: none; border-radius: 5px; margin-left: 5px; }
+        .btn-download:hover { background: #45a049; }
         .card, .table-responsive { margin-top: 20px; }
     </style>
 </head>
@@ -89,12 +89,11 @@
 
         <!-- Botones -->
         <div class="btn-container">
-            <a href="{{ url_for('descargar_registros', 
-                                 usuario=request.args.get('usuario', ''), 
-                                 fecha_inicio=request.args.get('fecha_inicio', ''), 
-                                 fecha_fin=request.args.get('fecha_fin', '')) }}">
-                <button type="button" class="btn-download">Descargar TXT</button>
-            </a>
+            <div class="export-buttons">
+                <a href="/api/export.csv?usuario={{usuario}}&desde={{desde}}&hasta={{hasta}}" class="btn-download">Exportar CSV</a>
+                <a href="/api/export.json?usuario={{usuario}}&desde={{desde}}&hasta={{hasta}}" class="btn-download">Exportar JSON</a>
+                <a href="/api/export.txt?usuario={{usuario}}&desde={{desde}}&hasta={{hasta}}" class="btn-download">Exportar TXT</a>
+            </div>
         </div>
     </main>
 </body>
