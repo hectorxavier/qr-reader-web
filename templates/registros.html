@@ -37,12 +37,19 @@
         <!-- Filtros -->
         <form method="get" action="{{ url_for('registros') }}">
             <label for="usuario">Usuario:</label>
-            <select name="usuario" id="usuario">
-                <option value="">Todos</option>
+            <input list="usuarios" id="usuario" name="usuario"
+                   placeholder="Escriba o seleccione un usuario"
+                   value="{{ request.args.get('usuario', '') }}">
+            
+            <datalist id="usuarios">
                 {% for u in usuarios %}
-                <option value="{{ u }}" {% if request.args.get('usuario') == u %}selected{% endif %}>{{ u }}</option>
+                <option value="{{ u }}">
                 {% endfor %}
-            </select>
+            </datalist>          
+
+            <input type="text" id="usuario_text" name="usuario" 
+                value="{{ request.args.get('usuario', '') }}" 
+                placeholder="Escribe un usuario...">
 
             <label for="fecha_inicio">Desde:</label>
             <input type="date" id="fecha_inicio" name="fecha_inicio" value="{{ request.args.get('fecha_inicio', '') }}">
