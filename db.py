@@ -50,8 +50,9 @@ def init_db():
     """)
 
     # Usuario por defecto
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
+    cursor.execute("SELECT COUNT(*) AS count FROM usuarios")
+    result = cursor.fetchone()
+    if result["count"] == 0:
         default_user = "admin"
         default_pass = generate_password_hash("admin123")
         cursor.execute(
