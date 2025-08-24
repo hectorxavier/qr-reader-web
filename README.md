@@ -1,43 +1,156 @@
-QR Reader con Backend en SQLite
+# QR Reader Web – PostgreSQL
 
-Este proyecto es una aplicación web que permite escanear códigos QR usando la cámara del dispositivo y registrar la asistencia de los usuarios en una base de datos SQLite.
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-Incluye validación de la ubicación GPS del usuario y varias mejoras de usabilidad para asegurar un registro confiable.
+Aplicación web para escaneo de códigos QR y registro de asistencia con validación de ubicación GPS y backend en Flask con PostgreSQL.  
 
-✨ Características principales
+---
 
-📷 Escaneo automático de QR con la cámara del dispositivo (móviles y PC con cámara).
+## ✨ Características principales
 
-🌍 Validación de ubicación GPS mediante navigator.geolocation.
+- 📷 Escaneo automático de QR con la cámara (móvil y PC).  
+- 🌍 Validación de ubicación GPS (`navigator.geolocation`) y control de distancia (50 metros).  
+- 🔒 Registro solo si el usuario está cerca del QR.  
+- ⏳ Tiempo límite de escaneo: 60 segundos.  
+- 🔔 Notificaciones visuales de estado, errores o tiempo agotado.  
+- 🧾 Gestión de registros: consulta por usuario y fecha, exportación a TXT.  
+- ⚠️ Manejo de errores y permisos (cámara y GPS).  
+- 🔐 Funciona bajo HTTPS (requerido para Safari iOS).  
 
-📌 Registro en SQLite usando backend con Flask.
+---
 
-🔒 El sistema solo registra asistencia si el usuario está cerca de la ubicación definida en el QR (validación de distancia con tolerancia de 50 metros).
+## 📁 Estructura del proyecto
 
-⏳ Control de tiempo de escaneo: si no se detecta un QR en 60 segundos, se cancela el proceso automáticamente.
+```
+qr-reader-web/
+│
+├── app_postgres.py      # Archivo principal Flask
+├── db.py                # Conexión y funciones de DB
+├── requirements.txt     # Dependencias
+├── schema.sql           # Script opcional de creación de tablas
+├── README.md            # Documentación
+│
+├── templates/           # Plantillas HTML
+│   ├── login.html
+│   ├── index.html
+│   ├── registros.html
+│   └── usuarios.html
+│
+├── static/              # Archivos estáticos
+│   ├── css/
+│   ├── js/
+│   └── images/
+│
+└── .gitignore           # Ignorar venv, __pycache__, etc.
+```
 
-🔔 Notificaciones en pantalla al usuario: estado de ubicación, escaneo correcto, errores o tiempo agotado.
+---
 
-🧾 Gestión de registros:
+## ⚙️ Requisitos
 
-Consulta por usuario y fecha.
+- Python 3.11+  
+- PostgreSQL (Render o local)  
+- Instalar dependencias:
 
-Exportación de registros a archivo .txt.
+```bash
+pip install -r requirements.txt
+```
 
-⚠️ Manejo de errores y permisos:
+---
 
-Si el usuario no concede permisos de cámara o ubicación → se notifica.
+## 🗄 Configuración de la base de datos
 
-Funciona bajo HTTPS (requerido especialmente en Safari iOS).
+### a) Render PostgreSQL
 
-qr-attendance-app/
-├── app.py                  # Archivo principal de Flask con endpoints para guardar y mostrar asistencia, compatible con Flask/Werkzeug recientes
-├── db.py                   # Manejo de la base de datos SQLite con tabla asistencia
-├── attendance.db           # Base de datos SQLite (no se sube a GitHub)
-├── requirements.txt        # Dependencias de Python actualizadas, incluye gunicorn
-├── templates/
-│   └── index.html          # Frontend HTML con <ul> para mostrar registros
-├── static/
-│   ├── style.css           # Estilos CSS
-│   └── script.js           # JS modificado para enviar datos y mostrar registros del backend
-└── README.md               # Documentación del proyecto
+1. Crear base de datos en Render.  
+2. Copiar la URL de conexión, ejemplo:
+
+```
+postgresql://usuario:password@host:puerto/dbname
+```
+
+3. Configurar variable de entorno en Render:
+
+```
+Key: DATABASE_URL
+Value: postgresql://usuario:password@host:puerto/dbname
+```
+
+### b) Local o con otra URL
+
+En `db.py`:
+
+```python
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    DATABASE_URL = "postgresql://usuario:password@host:puerto/otra_db"
+```
+
+---
+
+## 🚀 Inicializar la base de datos
+
+- `init_db()` en `db.py` crea automáticamente las tablas y el usuario por defecto (`admin / admin123`).  
+- Alternativa: usar `schema.sql` manualmente:
+
+```bash
+psql -d <dbname> -f schema.sql
+```
+
+> Reemplazar `<HASH_AQUI>` en `schema.sql` con:
+
+```python
+from werkzeug.security import generate_password_hash
+print(generate_password_hash("admin123"))
+```
+
+---
+
+## 🏃‍♂️ Ejecutar la aplicación
+
+```bash
+# Linux/macOS
+export DATABASE_URL="postgresql://usuario:password@host:puerto/dbname"
+
+# Windows
+set DATABASE_URL="postgresql://usuario:password@host:puerto/dbname"
+
+python app_postgres.py
+```
+
+Por defecto: `http://127.0.0.1:5000/`
+
+---
+
+## 🌐 Rutas principales
+
+| Ruta                     | Método  | Descripción                       |
+|---------------------------|---------|----------------------------------|
+| `/login`                  | GET/POST| Iniciar sesión                   |
+| `/logout`                 | GET     | Cerrar sesión                     |
+| `/`                       | GET     | Página principal                  |
+| `/scan`                   | POST    | Registrar escaneo de QR           |
+| `/registros`              | GET     | Ver registros (usuarios con permiso) |
+| `/registros/descargar`    | GET     | Descargar registros en TXT        |
+| `/usuarios`               | GET     | Listar usuarios (admin)           |
+| `/usuarios/add`           | POST    | Crear usuario (admin)             |
+| `/usuarios/edit/<id>`     | POST    | Editar usuario (admin)            |
+| `/usuarios/delete/<id>`   | POST    | Eliminar usuario (admin)          |
+
+---
+
+## 🔑 Variables de entorno importantes
+
+- `DATABASE_URL` → URL completa de la DB PostgreSQL  
+- `FLASK_ENV` → `development` o `production`  
+- `SECRET_KEY` → reemplazar `app.secret_key` en `app_postgres.py`  
+
+---
+
+## ☁️ Despliegue en Render
+
+1. Crear Web Service con Flask.  
+2. Subir todos los archivos (`app_postgres.py`, `db.py`, `requirements.txt`, `templates/`, `static/`).  
+3. Configurar `DATABASE_URL` en Environment.  
+4. Iniciar servicio; la DB se inicializa automáticamente.  
+5. Acceder a la URL de Render para usar la app.

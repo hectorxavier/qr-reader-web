@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, Response
-import sqlite3, math, time
+import math, time
 from werkzeug.security import generate_password_hash, check_password_hash
+from db import get_db_connection, init_db
 
 app = Flask(__name__)
 app.secret_key = "TU_SECRETO_AQUI"
@@ -17,61 +18,8 @@ def haversine(lat1, lon1, lat2, lon2):
     return 2*R*math.atan2(math.sqrt(a), math.sqrt(1-a))
 
 # -----------------------------
-# DB Helper
-# -----------------------------
-def get_db_connection():
-    conn = sqlite3.connect("scans.db")
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# -----------------------------
 # Inicializar DB
 # -----------------------------
-def init_db():
-    conn = sqlite3.connect("scans.db")
-    c = conn.cursor()
-
-    # Tabla usuarios
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            ver_registros INTEGER DEFAULT 0,
-            is_admin INTEGER DEFAULT 0
-        )
-    """)
-
-    # Tabla asistencias
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS asistencia (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            qr_number TEXT,
-            qr_lat REAL,
-            qr_lon REAL,
-            user_lat REAL,
-            user_lon REAL,
-            distancia REAL,
-            estado TEXT,
-            fecha TEXT,
-            hora TEXT,
-            FOREIGN KEY(user_id) REFERENCES usuarios(id)
-        )
-    """)
-
-    # Usuario por defecto
-    c.execute("SELECT COUNT(*) FROM usuarios")
-    if c.fetchone()[0] == 0:
-        default_user = "admin"
-        default_pass = generate_password_hash("admin123")
-        c.execute("INSERT INTO usuarios (username, password, ver_registros, is_admin) VALUES (?, ?, ?, ?)",
-                  (default_user, default_pass, 1, 1))
-        print("Usuario por defecto creado: admin / admin123")
-
-    conn.commit()
-    conn.close()
-
 init_db()
 
 # -----------------------------
@@ -84,7 +32,9 @@ def login():
         password = request.form["password"]
 
         conn = get_db_connection()
-        user = conn.execute("SELECT id, password, ver_registros, is_admin FROM usuarios WHERE username=?", (username,)).fetchone()
+        user = conn.cursor()
+        user.execute("SELECT id, password, ver_registros, is_admin FROM usuarios WHERE username=%s", (username,))
+        user = user.fetchone()
         conn.close()
 
         if user and check_password_hash(user["password"], password):
@@ -137,9 +87,10 @@ def scan():
     hora = time.strftime("%H:%M:%S")
 
     conn = get_db_connection()
-    conn.execute("""
+    cursor = conn.cursor()
+    cursor.execute("""
         INSERT INTO asistencia (user_id, qr_number, qr_lat, qr_lon, user_lat, user_lon, distancia, estado, fecha, hora)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (session["user_id"], qr_number, qr_lat, qr_lon, user_lat, user_lon, dist, status, fecha, hora))
     conn.commit()
     conn.close()
@@ -159,6 +110,8 @@ def registros():
     fecha_fin = request.args.get("fecha_fin", "")
 
     conn = get_db_connection()
+    cursor = conn.cursor()
+
     query = """
         SELECT a.id, u.username, a.qr_number, a.distancia, a.estado, a.fecha, a.hora
         FROM asistencia a
@@ -168,17 +121,19 @@ def registros():
     params = []
 
     if usuario:
-        query += " AND u.username = ?"
+        query += " AND u.username = %s"
         params.append(usuario)
     if fecha_inicio:
-        query += " AND a.fecha >= ?"
+        query += " AND a.fecha >= %s"
         params.append(fecha_inicio)
     if fecha_fin:
-        query += " AND a.fecha <= ?"
+        query += " AND a.fecha <= %s"
         params.append(fecha_fin)
 
-    registros = conn.execute(query, params).fetchall()
-    usuarios = [row["username"] for row in conn.execute("SELECT DISTINCT username FROM usuarios").fetchall()]
+    cursor.execute(query, params)
+    registros = cursor.fetchall()
+    cursor.execute("SELECT DISTINCT username FROM usuarios")
+    usuarios = [row["username"] for row in cursor.fetchall()]
     conn.close()
 
     return render_template("registros.html", registros=registros, usuarios=usuarios)
@@ -196,6 +151,8 @@ def descargar_registros():
     fecha_fin = request.args.get("fecha_fin", "")
 
     conn = get_db_connection()
+    cursor = conn.cursor()
+
     query = """
         SELECT a.id, u.username, a.qr_number, a.distancia, a.estado, a.fecha, a.hora
         FROM asistencia a
@@ -205,16 +162,17 @@ def descargar_registros():
     params = []
 
     if usuario:
-        query += " AND u.username = ?"
+        query += " AND u.username = %s"
         params.append(usuario)
     if fecha_inicio:
-        query += " AND a.fecha >= ?"
+        query += " AND a.fecha >= %s"
         params.append(fecha_inicio)
     if fecha_fin:
-        query += " AND a.fecha <= ?"
+        query += " AND a.fecha <= %s"
         params.append(fecha_fin)
 
-    registros = conn.execute(query, params).fetchall()
+    cursor.execute(query, params)
+    registros = cursor.fetchall()
     conn.close()
 
     contenido = "ID | Usuario | QR | Distancia (m) | Estado | Fecha | Hora\n"
@@ -237,7 +195,9 @@ def usuarios():
         return "No tiene permiso para gestionar usuarios", 403
 
     conn = get_db_connection()
-    usuarios_list = conn.execute("SELECT id, username, ver_registros, is_admin FROM usuarios").fetchall()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, ver_registros, is_admin FROM usuarios")
+    usuarios_list = cursor.fetchall()
     conn.close()
 
     usuarios_dict = [{"id": u["id"], "username": u["username"], "ver_registros": u["ver_registros"], "is_admin": u["is_admin"]} for u in usuarios_list]
@@ -257,13 +217,16 @@ def add_usuario():
     hashed = generate_password_hash(password)
     try:
         conn = get_db_connection()
-        conn.execute("INSERT INTO usuarios (username, password, ver_registros, is_admin) VALUES (?, ?, ?, ?)",
-                     (username, hashed, ver_registros, is_admin))
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO usuarios (username, password, ver_registros, is_admin) VALUES (%s, %s, %s, %s)",
+            (username, hashed, ver_registros, is_admin)
+        )
         conn.commit()
         conn.close()
         return "OK", 200
-    except sqlite3.IntegrityError:
-        return "El usuario ya existe", 400
+    except Exception as e:
+        return f"Error: {str(e)}", 400
 
 @app.route("/usuarios/edit/<int:user_id>", methods=["POST"])
 def edit_usuario(user_id):
@@ -277,13 +240,18 @@ def edit_usuario(user_id):
     is_admin = int(data.get("is_admin", 0))
 
     conn = get_db_connection()
+    cursor = conn.cursor()
     if password:
         hashed = generate_password_hash(password)
-        conn.execute("UPDATE usuarios SET username=?, password=?, ver_registros=?, is_admin=? WHERE id=?",
-                     (username, hashed, ver_registros, is_admin, user_id))
+        cursor.execute(
+            "UPDATE usuarios SET username=%s, password=%s, ver_registros=%s, is_admin=%s WHERE id=%s",
+            (username, hashed, ver_registros, is_admin, user_id)
+        )
     else:
-        conn.execute("UPDATE usuarios SET username=?, ver_registros=?, is_admin=? WHERE id=?",
-                     (username, ver_registros, is_admin, user_id))
+        cursor.execute(
+            "UPDATE usuarios SET username=%s, ver_registros=%s, is_admin=%s WHERE id=%s",
+            (username, ver_registros, is_admin, user_id)
+        )
     conn.commit()
     conn.close()
     return "OK", 200
@@ -294,7 +262,8 @@ def delete_usuario(user_id):
         return "No autorizado", 403
 
     conn = get_db_connection()
-    conn.execute("DELETE FROM usuarios WHERE id=?", (user_id,))
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM usuarios WHERE id=%s", (user_id,))
     conn.commit()
     conn.close()
     return "OK", 200
