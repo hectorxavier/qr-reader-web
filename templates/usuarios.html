@@ -26,19 +26,25 @@
         <div class="card-body">
             <form id="form-add-user">
                 <div class="row g-2">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <input type="text" class="form-control" name="username" placeholder="Nombre de usuario" required>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <input type="password" class="form-control" name="password" placeholder="Contraseña" required>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <select class="form-select" name="can_view_logs">
-                            <option value="1">Puede ver registros</option>
-                            <option value="0">No puede ver registros</option>
+                            <option value="1">Gestor de registros</option> 
+                            <option value="0">Usuario asistencia</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <select class="form-select" name="is_admin">
+                            <option value="0">No es administrador</option> 
+                            <option value="1">Administrador</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <button type="submit" class="btn btn-primary w-100">Agregar</button>
                     </div>
                 </div>
@@ -54,15 +60,17 @@
                     <th>ID</th>
                     <th>Usuario</th>
                     <th>Puede ver registros</th>
+                    <th>Administrador</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for user in usuarios %}
-                <tr data-id="{{ user.id }}" data-username="{{ user.username }}" data-canview="{{ user.ver_registros }}">
+                <tr data-id="{{ user.id }}" data-username="{{ user.username }}" data-canview="{{ user.ver_registros }}" data-isadmin="{{ user.is_admin }}">
                     <td>{{ user.id }}</td>
                     <td>{{ user.username }}</td>
                     <td>{{ "Sí" if user.ver_registros else "No" }}</td>
+                    <td>{{ "Sí" if user.is_admin else "No" }}</td>
                     <td>
                         <button class="btn btn-sm btn-warning btn-edit" data-bs-toggle="modal" data-bs-target="#editUserModal">Editar</button>
                         <button class="btn btn-sm btn-danger btn-delete">Eliminar</button>
@@ -93,8 +101,15 @@
             <input type="password" class="form-control" name="password" id="edit-password">
         </div>
         <div class="mb-3">
-            <label>Puede ver registros</label>
+            <label>Gestor de registros</label>
             <select class="form-select" name="can_view_logs" id="edit-canview">
+                <option value="1">Sí</option>
+                <option value="0">No</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label>Administrador</label>
+            <select class="form-select" name="is_admin" id="edit-isadmin">
                 <option value="1">Sí</option>
                 <option value="0">No</option>
             </select>
@@ -117,6 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(formAdd));
         data.can_view_logs = parseInt(data.can_view_logs);
+        data.is_admin = parseInt(data.is_admin);
 
         const res = await fetch("/usuarios/add", {
             method: "POST",
@@ -132,9 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Abrir modal con datos
-    const editModal = document.getElementById("editUserModal");
     let currentEditId = null;
-
     document.querySelectorAll(".btn-edit").forEach(btn => {
         btn.addEventListener("click", () => {
             const row = btn.closest("tr");
@@ -142,6 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("edit-id").value = currentEditId;
             document.getElementById("edit-username").value = row.dataset.username;
             document.getElementById("edit-canview").value = row.dataset.canview;
+            document.getElementById("edit-isadmin").value = row.dataset.isadmin;
         });
     });
 
@@ -151,6 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(formEdit));
         data.can_view_logs = parseInt(data.can_view_logs);
+        data.is_admin = parseInt(data.is_admin);
 
         const res = await fetch(`/usuarios/edit/${currentEditId}`, {
             method: "POST",
