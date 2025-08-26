@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for, s
 import math, time
 from werkzeug.security import generate_password_hash, check_password_hash
 from db import get_db_connection, init_db
+from psycopg2.extras import RealDictCursor
+from datetime import datetime
+import pytz
 
 app = Flask(__name__)
 app.secret_key = "TU_SECRETO_AQUI"
@@ -83,8 +86,11 @@ def scan():
 
     dist = haversine(user_lat, user_lon, qr_lat, qr_lon)
     status = "VALIDO" if dist <= 50 else "INVALIDO"
-    fecha = time.strftime("%Y-%m-%d")
-    hora = time.strftime("%H:%M:%S")
+
+    ecuador_tz = pytz.timezone("America/Guayaquil")  # GMT-5
+    ahora = datetime.now(ecuador_tz)
+    fecha = ahora.strftime("%Y-%m-%d")
+    hora = ahora.strftime("%H:%M:%S")
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -110,7 +116,7 @@ def registros():
     fecha_fin = request.args.get("fecha_fin", "")
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
 
     query = """
         SELECT a.id, u.username, a.qr_number, a.distancia, a.estado, a.fecha, a.hora
@@ -121,8 +127,8 @@ def registros():
     params = []
 
     if usuario:
-        query += " AND u.username = %s"
-        params.append(usuario)
+        query += " AND u.username ILIKE %s"
+        params.append(f"%{usuario}%")
     if fecha_inicio:
         query += " AND a.fecha >= %s"
         params.append(fecha_inicio)
@@ -151,8 +157,7 @@ def descargar_registros():
     fecha_fin = request.args.get("fecha_fin", "")
 
     conn = get_db_connection()
-    cursor = conn.cursor()
-
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     query = """
         SELECT a.id, u.username, a.qr_number, a.distancia, a.estado, a.fecha, a.hora
         FROM asistencia a
@@ -175,10 +180,9 @@ def descargar_registros():
     registros = cursor.fetchall()
     conn.close()
 
-    contenido = "ID | Usuario | QR | Distancia (m) | Estado | Fecha | Hora\n"
-    contenido += "-"*70 + "\n"
+    contenido = "ID\tUsuario\tQR\tDistancia (m)\tEstado\tFecha\tHora\n"
     for r in registros:
-        contenido += f"{r['id']} | {r['username']} | {r['qr_number']} | {round(r['distancia'],2)} | {r['estado']} | {r['fecha']} | {r['hora']}\n"
+        contenido += f"{r['id']}\t{r['username']}\t{r['qr_number']}\t{round(r['distancia'], 2)}\t{r['estado']}\t{r['fecha']}\t{r['hora']}\n"
 
     return Response(
         contenido,
@@ -187,7 +191,7 @@ def descargar_registros():
     )
 
 # -----------------------------
-# Gestión de usuarios (Admin)
+# Gestión de usuarios (solo admin)
 # -----------------------------
 @app.route("/usuarios")
 def usuarios():
@@ -195,13 +199,12 @@ def usuarios():
         return "No tiene permiso para gestionar usuarios", 403
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute("SELECT id, username, ver_registros, is_admin FROM usuarios")
     usuarios_list = cursor.fetchall()
     conn.close()
 
-    usuarios_dict = [{"id": u["id"], "username": u["username"], "ver_registros": u["ver_registros"], "is_admin": u["is_admin"]} for u in usuarios_list]
-    return render_template("usuarios.html", usuarios=usuarios_dict)
+    return render_template("usuarios.html", usuarios=usuarios_list)
 
 @app.route("/usuarios/add", methods=["POST"])
 def add_usuario():
