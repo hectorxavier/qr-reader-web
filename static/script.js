@@ -74,24 +74,24 @@ function aplicarFiltros() {
     const filas = document.querySelectorAll("#usuarios-table tbody tr");
 
     filas.forEach(fila => {
-        const username = fila.querySelector(".col-username").innerText.toLowerCase();
-        const gestor = fila.querySelector(".col-gestor").innerText.toLowerCase();
-        const admin = fila.querySelector(".col-admin").innerText.toLowerCase();
+        const username = fila.dataset.username.toLowerCase();
+        const gestor = fila.dataset.canview === "1" ? "sí" : "no";
+        const admin = fila.dataset.isadmin === "1" ? "sí" : "no";
 
         let mostrar = true;
 
-        // Filtro usuario (búsqueda parcial)
+        // Filtro usuario
         if (usuarioFiltro && !username.includes(usuarioFiltro)) {
             mostrar = false;
         }
 
         // Filtro gestor
-        if (gestorFiltro && gestor !== gestorFiltro) {
+        if (gestorFiltro && gestorFiltro !== "" && gestor !== gestorFiltro) {
             mostrar = false;
         }
 
         // Filtro admin
-        if (adminFiltro && admin !== adminFiltro) {
+        if (adminFiltro && adminFiltro !== "" && admin !== adminFiltro) {
             mostrar = false;
         }
 
