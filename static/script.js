@@ -14,7 +14,7 @@ function initQRScanner() {
 
                     if (!navigator.geolocation) {
                         alert("Este navegador no soporta geolocalización.");
-                        startScanner(); // Reinicia
+                        startScanner();
                         return;
                     }
 
@@ -36,16 +36,15 @@ function initQRScanner() {
                                 const data = await res.json();
                                 alert(`${data.message}\nDistancia: ${data.distancia_m} m`);
 
-                                // Reinicia el escáner si el QR es inválido
                                 if (data.estado !== "VALIDO") startScanner();
                             } catch (err) {
                                 alert("Error al enviar datos: " + err);
-                                startScanner(); // Reinicia tras error
+                                startScanner();
                             }
                         },
                         error => {
                             alert("No se pudo obtener la ubicación: " + error.message);
-                            startScanner(); // Reinicia tras error de ubicación
+                            startScanner();
                         },
                         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                     );
@@ -56,7 +55,7 @@ function initQRScanner() {
             );
         } catch (err) {
             console.error("No se pudo iniciar el lector QR:", err);
-            setTimeout(startScanner, 2000); // Intentar de nuevo tras 2s
+            setTimeout(startScanner, 2000);
         }
     }
 
@@ -69,8 +68,8 @@ window.addEventListener("DOMContentLoaded", initQRScanner);
 // Filtrado múltiple
 function aplicarFiltros() {
     const usuarioFiltro = document.getElementById("filtro-usuario").value.toLowerCase();
-    const gestorFiltro = document.getElementById("filtro-gestor").value;
-    const adminFiltro = document.getElementById("filtro-admin").value;
+    const gestorFiltro = document.getElementById("filtro-gestor").value.toLowerCase();
+    const adminFiltro = document.getElementById("filtro-admin").value.toLowerCase();
 
     const filas = document.querySelectorAll("#usuarios-table tbody tr");
 
@@ -81,7 +80,7 @@ function aplicarFiltros() {
 
         let mostrar = true;
 
-        // Filtro usuario
+        // Filtro usuario (búsqueda parcial)
         if (usuarioFiltro && !username.includes(usuarioFiltro)) {
             mostrar = false;
         }
@@ -100,7 +99,7 @@ function aplicarFiltros() {
     });
 }
 
-// Eventos
+// Eventos filtros
 document.getElementById("filtro-usuario").addEventListener("keyup", aplicarFiltros);
 document.getElementById("filtro-gestor").addEventListener("change", aplicarFiltros);
 document.getElementById("filtro-admin").addEventListener("change", aplicarFiltros);
@@ -110,7 +109,7 @@ document.querySelectorAll(".btn-toggle").forEach(btn => {
     btn.addEventListener("click", async () => {
         const row = btn.closest("tr");
         const id = row.dataset.id;
-        const activo = row.dataset.activo === "1"; // viene como string
+        const activo = row.dataset.activo === "1";
 
         const accion = activo ? "desactivar" : "activar";
         if(!confirm(`¿Seguro que desea ${accion} este usuario?`)) return;
@@ -124,4 +123,3 @@ document.querySelectorAll(".btn-toggle").forEach(btn => {
         }
     });
 });
-
