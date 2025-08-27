@@ -65,6 +65,75 @@ function initQRScanner() {
 // Iniciar scanner al cargar la página
 window.addEventListener("DOMContentLoaded", initQRScanner);
 
+// Radios agregar usuario
+const addAdminRadios = [document.getElementById("add-isadmin-si"), document.getElementById("add-isadmin-no")];
+const addViewRadios = [document.getElementById("add-canview-si"), document.getElementById("add-canview-no")];
+addAdminRadios.forEach(r => r.addEventListener("change", () => syncCanViewLogs(addAdminRadios, addViewRadios)));
+syncCanViewLogs(addAdminRadios, addViewRadios);
+
+// Agregar usuario
+const formAdd = document.getElementById("form-add-user");
+formAdd.addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(formAdd));
+    data.is_admin = addAdminRadios[0].checked ? 1 : 0;
+    data.can_view_logs = addViewRadios[0].checked ? 1 : 0;
+
+    const res = await fetch("/usuarios/add", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(data)
+    });
+
+    if(res.ok) location.reload();
+    else {
+        const msg = await res.text();
+        alert("Error al agregar usuario: " + msg);
+    }
+});
+
+// Modal edición
+const editAdminRadios = [document.getElementById("edit-isadmin-si"), document.getElementById("edit-isadmin-no")];
+const editViewRadios = [document.getElementById("edit-canview-si"), document.getElementById("edit-canview-no")];
+let currentEditId = null;
+
+document.querySelectorAll(".btn-edit").forEach(btn => {
+    btn.addEventListener("click", () => {
+        const row = btn.closest("tr");
+        currentEditId = row.dataset.id;
+        document.getElementById("edit-id").value = currentEditId;
+        document.getElementById("edit-username").value = row.dataset.username;
+        editAdminRadios[0].checked = row.dataset.isadmin == "1";
+        editAdminRadios[1].checked = row.dataset.isadmin == "0";
+        editViewRadios[0].checked = row.dataset.canview == "1";
+        editViewRadios[1].checked = row.dataset.canview == "0";
+        syncCanViewLogs(editAdminRadios, editViewRadios);
+    });
+});
+
+editAdminRadios.forEach(r => r.addEventListener("change", () => syncCanViewLogs(editAdminRadios, editViewRadios)));
+
+// Editar usuario
+const formEdit = document.getElementById("form-edit-user");
+formEdit.addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(formEdit));
+    data.is_admin = editAdminRadios[0].checked ? 1 : 0;
+    data.can_view_logs = editViewRadios[0].checked ? 1 : 0;
+
+    const res = await fetch(`/usuarios/edit/${currentEditId}`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(data)
+    });
+
+    if(res.ok) location.reload();
+    else {
+        const msg = await res.text();
+        alert("Error al editar usuario: " + msg);
+    }
+});
+
 // Filtrado múltiple
 function aplicarFiltros() {
     const usuarioFiltro = document.getElementById("filtro-usuario").value.toLowerCase();
