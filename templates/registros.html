@@ -60,9 +60,8 @@
         <table>
             <thead>
                 <tr>
-                    <th>ID</th>
                     <th>Usuario</th>
-                    <th>QR</th>
+                    <th>Oficina</th>
                     <th>Distancia (m)</th>
                     <th>Estado</th>
                     <th>Fecha</th>
@@ -73,7 +72,6 @@
                 {% if registros %}
                     {% for r in registros %}
                     <tr>
-                        <td>{{ r.id }}</td>
                         <td>{{ r.username }}</td>
                         <td>{{ r.qr_number }}</td>
                         <td>{{ r.distancia|round(2) }}</td>

@@ -28,7 +28,8 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             ver_registros INTEGER DEFAULT 0,
-            is_admin INTEGER DEFAULT 0
+            is_admin INTEGER DEFAULT 0,
+            activo INTEGER DEFAULT 1
         )
     """)
 

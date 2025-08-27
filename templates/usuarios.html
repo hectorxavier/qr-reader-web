@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Usuarios</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #f8f9fa; }
-        .card, .table-responsive { margin-top: 20px; }
-        .form-check-inline { margin-right: 15px; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <div class="container mt-4">
@@ -21,70 +17,94 @@
         </div>
     </div>
 
-    <!-- Formulario para crear nuevo usuario -->
-    <div class="card">
+    <!-- Formulario agregar usuario -->
+    <div class="card mt-3">
         <div class="card-header">Agregar Usuario</div>
         <div class="card-body">
-            <form id="form-add-user">
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-2">
-                        <input type="text" class="form-control" name="username" placeholder="Nombre de usuario" required>
-                    </div>
-                    <div class="col-md-2">
-                        <input type="password" class="form-control" name="password" placeholder="Contraseña" required>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label me-2">Administrador:</label>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="is_admin" id="add-isadmin-si" value="1">
-                            <label class="form-check-label" for="add-isadmin-si">Sí</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="is_admin" id="add-isadmin-no" value="0" checked>
-                            <label class="form-check-label" for="add-isadmin-no">No</label>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label me-2">Gestor de registros:</label>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="can_view_logs" id="add-canview-si" value="1">
-                            <label class="form-check-label" for="add-canview-si">Sí</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="can_view_logs" id="add-canview-no" value="0" checked>
-                            <label class="form-check-label" for="add-canview-no">No</label>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary w-100">Agregar</button>
-                    </div>
+            <form id="form-add-user" class="row g-2 align-items-center">
+                <div class="col-md-2">
+                    <input type="text" class="form-control" name="username" placeholder="Nombre de usuario" required>
+                </div>
+                <div class="col-md-2">
+                    <input type="password" class="form-control" name="password" placeholder="Contraseña" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label me-2">Administrador:</label>
+                    <input type="radio" name="is_admin" value="1"> Sí
+                    <input type="radio" name="is_admin" value="0" checked> No
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label me-2">Gestor de registros:</label>
+                    <input type="radio" name="can_view_logs" value="1"> Sí
+                    <input type="radio" name="can_view_logs" value="0" checked> No
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Agregar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Tabla de usuarios -->
+    <!-- Filtros -->
+    <div class="row mt-3 g-2">
+        <div class="col-md-4"><input type="text" id="filtro-usuario" class="form-control" placeholder="Buscar usuario..."></div>
+        <div class="col-md-3">
+            <select id="filtro-gestor" class="form-select">
+                <option value="">Todos (Gestor)</option>
+                <option value="sí">Sí</option>
+                <option value="no">No</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select id="filtro-admin" class="form-select">
+                <option value="">Todos (Admin)</option>
+                <option value="sí">Sí</option>
+                <option value="no">No</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Mostrar inactivos -->
+    <form method="get" id="filterForm" class="mb-3">
+        <label>
+            <input type="checkbox" name="inactivos" value="1" onchange="document.getElementById('filterForm').submit();"
+                {% if mostrar_inactivos == '1' %}checked{% endif %}>
+            Mostrar inactivos
+        </label>
+    </form>
+
+    <!-- Tabla usuarios -->
     <div class="table-responsive">
         <table class="table table-striped table-hover" id="usuarios-table">
             <thead class="table-dark">
                 <tr>
-                    <th>ID</th>
                     <th>Usuario</th>
-                    <th>Puede ver registros</th>
+                    <th>Gestor de registros</th>
                     <th>Administrador</th>
+                    <th>Estado</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for user in usuarios %}
-                <tr data-id="{{ user.id }}" data-username="{{ user.username }}" data-canview="{{ user.ver_registros }}" data-isadmin="{{ user.is_admin }}">
-                    <td>{{ user.id }}</td>
-                    <td>{{ user.username }}</td>
+                <tr data-id="{{ user.id }}" data-username="{{ user.username }}" 
+                    data-canview="{{ user.ver_registros }}" data-isadmin="{{ user.is_admin }}"
+                    data-activo="{{ user.activo }}">
+                    
+                    <td>
+                        {{ user.username }}
+                        {% if not user.activo %}<span class="badge bg-secondary ms-2">Inactivo</span>{% endif %}
+                    </td>
                     <td>{{ "Sí" if user.ver_registros else "No" }}</td>
                     <td>{{ "Sí" if user.is_admin else "No" }}</td>
+                    <td>{{ "Activo" if user.activo else "Inactivo" }}</td>
                     <td>
                         <button class="btn btn-sm btn-warning btn-edit" data-bs-toggle="modal" data-bs-target="#editUserModal">Editar</button>
-                        <button class="btn btn-sm btn-danger btn-delete">Eliminar</button>
+                        {% if user.activo %}
+                            <button class="btn btn-sm btn-danger btn-toggle">Desactivar</button>
+                        {% else %}
+                            <button class="btn btn-sm btn-success btn-toggle">Activar</button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -95,155 +115,42 @@
 
 <!-- Modal de edición -->
 <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form id="form-edit-user" class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="editUserLabel">Editar Usuario</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" name="id" id="edit-id">
-        <div class="mb-3">
-            <label>Usuario</label>
-            <input type="text" class="form-control" name="username" id="edit-username" required>
-        </div>
-        <div class="mb-3">
-            <label>Nueva Contraseña (dejar vacío si no cambia)</label>
-            <input type="password" class="form-control" name="password" id="edit-password">
-        </div>
-        <div class="mb-3">
-            <label class="form-label me-2">Administrador:</label>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="is_admin_edit" id="edit-isadmin-si" value="1">
-                <label class="form-check-label" for="edit-isadmin-si">Sí</label>
+    <div class="modal-dialog">
+        <form id="form-edit-user" class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Usuario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="is_admin_edit" id="edit-isadmin-no" value="0">
-                <label class="form-check-label" for="edit-isadmin-no">No</label>
+            <div class="modal-body">
+                <input type="hidden" name="id" id="edit-id">
+                <div class="mb-3">
+                    <label>Usuario</label>
+                    <input type="text" class="form-control" name="username" id="edit-username" required>
+                </div>
+                <div class="mb-3">
+                    <label>Contraseña (si desea cambiar)</label>
+                    <input type="password" class="form-control" name="password" id="edit-password">
+                </div>
+                <div class="mb-3">
+                    <label>Administrador:</label>
+                    <input type="radio" name="is_admin_edit" id="edit-isadmin-si" value="1"> Sí
+                    <input type="radio" name="is_admin_edit" id="edit-isadmin-no" value="0"> No
+                </div>
+                <div class="mb-3">
+                    <label>Gestor de registros:</label>
+                    <input type="radio" name="can_view_logs_edit" id="edit-canview-si" value="1"> Sí
+                    <input type="radio" name="can_view_logs_edit" id="edit-canview-no" value="0"> No
+                </div>
             </div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label me-2">Gestor de registros:</label>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="can_view_logs_edit" id="edit-canview-si" value="1">
-                <label class="form-check-label" for="edit-canview-si">Sí</label>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar Cambios</button>
             </div>
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="can_view_logs_edit" id="edit-canview-no" value="0">
-                <label class="form-check-label" for="edit-canview-no">No</label>
-            </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-      </div>
-    </form>
-  </div>
+        </form>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-
-    function syncCanViewLogs(adminRadios, viewRadios) {
-        if(adminRadios[0].checked) { // Sí
-            viewRadios[0].checked = true;
-            viewRadios[0].disabled = true;
-            viewRadios[1].disabled = true;
-        } else { // No
-            viewRadios[0].disabled = false;
-            viewRadios[1].disabled = false;
-        }
-    }
-
-    // Radios agregar usuario
-    const addAdminRadios = [document.getElementById("add-isadmin-si"), document.getElementById("add-isadmin-no")];
-    const addViewRadios = [document.getElementById("add-canview-si"), document.getElementById("add-canview-no")];
-    addAdminRadios.forEach(r => r.addEventListener("change", () => syncCanViewLogs(addAdminRadios, addViewRadios)));
-    syncCanViewLogs(addAdminRadios, addViewRadios);
-
-    // Agregar usuario
-    const formAdd = document.getElementById("form-add-user");
-    formAdd.addEventListener("submit", async e => {
-        e.preventDefault();
-        const data = Object.fromEntries(new FormData(formAdd));
-        data.is_admin = addAdminRadios[0].checked ? 1 : 0;
-        data.can_view_logs = addViewRadios[0].checked ? 1 : 0;
-
-        const res = await fetch("/usuarios/add", {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify(data)
-        });
-
-        if(res.ok) location.reload();
-        else {
-            const msg = await res.text();
-            alert("Error al agregar usuario: " + msg);
-        }
-    });
-
-    // Modal edición
-    const editAdminRadios = [document.getElementById("edit-isadmin-si"), document.getElementById("edit-isadmin-no")];
-    const editViewRadios = [document.getElementById("edit-canview-si"), document.getElementById("edit-canview-no")];
-    let currentEditId = null;
-
-    document.querySelectorAll(".btn-edit").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const row = btn.closest("tr");
-            currentEditId = row.dataset.id;
-            document.getElementById("edit-id").value = currentEditId;
-            document.getElementById("edit-username").value = row.dataset.username;
-            editAdminRadios[0].checked = row.dataset.isadmin == "1";
-            editAdminRadios[1].checked = row.dataset.isadmin == "0";
-            editViewRadios[0].checked = row.dataset.canview == "1";
-            editViewRadios[1].checked = row.dataset.canview == "0";
-            syncCanViewLogs(editAdminRadios, editViewRadios);
-        });
-    });
-
-    editAdminRadios.forEach(r => r.addEventListener("change", () => syncCanViewLogs(editAdminRadios, editViewRadios)));
-
-    // Editar usuario
-    const formEdit = document.getElementById("form-edit-user");
-    formEdit.addEventListener("submit", async e => {
-        e.preventDefault();
-        const data = Object.fromEntries(new FormData(formEdit));
-        data.is_admin = editAdminRadios[0].checked ? 1 : 0;
-        data.can_view_logs = editViewRadios[0].checked ? 1 : 0;
-
-        const res = await fetch(`/usuarios/edit/${currentEditId}`, {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify(data)
-        });
-
-        if(res.ok) location.reload();
-        else {
-            const msg = await res.text();
-            alert("Error al editar usuario: " + msg);
-        }
-    });
-
-    // Eliminar usuario
-    document.querySelectorAll(".btn-delete").forEach(btn => {
-        btn.addEventListener("click", async () => {
-            if(!confirm("¿Desea eliminar este usuario?")) return;
-            const row = btn.closest("tr");
-            const id = row.dataset.id;
-
-            const res = await fetch(`/usuarios/delete/${id}`, { method: "POST" });
-
-            if(res.ok) location.reload();
-            else {
-                const msg = await res.text();
-                alert("Error al eliminar usuario: " + msg);
-            }
-        });
-    });
-
-});
-</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

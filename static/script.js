@@ -65,3 +65,63 @@ function initQRScanner() {
 
 // Iniciar scanner al cargar la página
 window.addEventListener("DOMContentLoaded", initQRScanner);
+
+// Filtrado múltiple
+function aplicarFiltros() {
+    const usuarioFiltro = document.getElementById("filtro-usuario").value.toLowerCase();
+    const gestorFiltro = document.getElementById("filtro-gestor").value;
+    const adminFiltro = document.getElementById("filtro-admin").value;
+
+    const filas = document.querySelectorAll("#usuarios-table tbody tr");
+
+    filas.forEach(fila => {
+        const username = fila.querySelector(".col-username").innerText.toLowerCase();
+        const gestor = fila.querySelector(".col-gestor").innerText.toLowerCase();
+        const admin = fila.querySelector(".col-admin").innerText.toLowerCase();
+
+        let mostrar = true;
+
+        // Filtro usuario
+        if (usuarioFiltro && !username.includes(usuarioFiltro)) {
+            mostrar = false;
+        }
+
+        // Filtro gestor
+        if (gestorFiltro && gestor !== gestorFiltro) {
+            mostrar = false;
+        }
+
+        // Filtro admin
+        if (adminFiltro && admin !== adminFiltro) {
+            mostrar = false;
+        }
+
+        fila.style.display = mostrar ? "" : "none";
+    });
+}
+
+// Eventos
+document.getElementById("filtro-usuario").addEventListener("keyup", aplicarFiltros);
+document.getElementById("filtro-gestor").addEventListener("change", aplicarFiltros);
+document.getElementById("filtro-admin").addEventListener("change", aplicarFiltros);
+
+// Activar / Desactivar usuario
+document.querySelectorAll(".btn-toggle").forEach(btn => {
+    btn.addEventListener("click", async () => {
+        const row = btn.closest("tr");
+        const id = row.dataset.id;
+        const activo = row.dataset.activo === "1"; // viene como string
+
+        const accion = activo ? "desactivar" : "activar";
+        if(!confirm(`¿Seguro que desea ${accion} este usuario?`)) return;
+
+        const res = await fetch(`/usuarios/toggle/${id}`, { method: "POST" });
+
+        if(res.ok) location.reload();
+        else {
+            const msg = await res.text();
+            alert("Error al actualizar usuario: " + msg);
+        }
+    });
+});
+

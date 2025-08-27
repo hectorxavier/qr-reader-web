@@ -198,13 +198,26 @@ def usuarios():
     if "user_id" not in session or not session.get("is_admin"):
         return "No tiene permiso para gestionar usuarios", 403
 
+    mostrar_inactivos = request.args.get("inactivos", "0")
+
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT id, username, ver_registros, is_admin FROM usuarios")
+    if mostrar_inactivos == "1":
+        cursor.execute("""
+            SELECT id, username, ver_registros, is_admin, activo
+            FROM usuarios
+        """)
+    else:
+        cursor.execute("""
+            SELECT id, username, ver_registros, is_admin, activo
+            FROM usuarios
+            WHERE activo = 1
+        """)
+
     usuarios_list = cursor.fetchall()
     conn.close()
 
-    return render_template("usuarios.html", usuarios=usuarios_list)
+    return render_template("usuarios.html", usuarios=usuarios_list, mostrar_inactivos=mostrar_inactivos)
 
 @app.route("/usuarios/add", methods=["POST"])
 def add_usuario():
@@ -259,16 +272,23 @@ def edit_usuario(user_id):
     conn.close()
     return "OK", 200
 
-@app.route("/usuarios/delete/<int:user_id>", methods=["POST"])
-def delete_usuario(user_id):
+@app.route("/usuarios/toggle/<int:user_id>", methods=["POST"])
+def toggle_usuario(user_id):
     if "user_id" not in session or not session.get("is_admin"):
         return "No autorizado", 403
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM usuarios WHERE id=%s", (user_id,))
+
+    # Cambiar de activo=1 a activo=0 y viceversa
+    cursor.execute("""
+        UPDATE usuarios
+        SET activo = CASE WHEN activo = 1 THEN 0 ELSE 1 END
+        WHERE id = %s
+    """, (user_id,))
     conn.commit()
     conn.close()
+
     return "OK", 200
 
 # -----------------------------
